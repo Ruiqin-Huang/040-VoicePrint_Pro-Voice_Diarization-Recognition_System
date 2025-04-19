@@ -208,7 +208,7 @@ def main():
         return
     config = build_config(args.conf)
     clusters = perform_clustering(all_embeddings, all_paths, config)
-    print(f"[INFO] Clustering completed. Found {len(clusters)} clusters.")
+    print(f"[INFO] Clustering completed. Found {len(clusters)} speakers.")
     
     # 检查聚类结果，若无有效聚类，则返回
     if not clusters:

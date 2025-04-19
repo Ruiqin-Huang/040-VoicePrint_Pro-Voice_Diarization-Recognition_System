@@ -24,4 +24,4 @@ pyannote.audio
 addict
 datasets
 simplejson
-# conda install -c conda-forge sox
+pydub
