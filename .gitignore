@@ -1,0 +1,3 @@
+# Exclude example and workspace directories
+/example/
+/workspace/
