@@ -339,5 +339,7 @@ python ${SCRIPT_DIR}/local/audio_diarization.py --input_dir "$audio_dir" --works
 ## work in progress
 
 1. 使用更大规模的数据集开展全面的评估，包括说话人分割准确率，聚类效果等指标的评估。
-2. 开发语音转文字模块
-3. 重设模型接口及
+2. 开发语音转文字模块。
+3. 开发说话人声纹识别模块。
+4. 优化模型输入输出接口。
+
