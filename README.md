@@ -69,25 +69,28 @@
 ### 参数说明
 
 使用以下命令执行`run_audio_diarization-cluster.sh`脚本：
-   ```bash
-   ./run_audio_diarization-cluster.sh --audio_dir <输入目录> --workspace <工作区> --proc_per_node <每节点进程数> --run_stage <运行阶段> --gpus <gpu列表> --use_gpu(可选参数)
-   ```
-    - `--audio_dir`：包含`.wav`文件的目录路径。文件夹名为.wav音频对应的语言，如`chinese`、`english`、`russian`等。
-    - `--workspace`：存储结果的工作目录路径。
-    - `--gpus`：用于处理的GPU编号。输入格式如"0"(使用cuda:0)，"1 2"(使用cuda:1和cuda:2) ，需要搭配`--use_gpu`参数使用。
-    - `--use_gpu` : 是否使用gpu进行处理，不指定该参数默认为False，给出--use_gpu参数则为True
-    - `--proc_per_node`：每个节点（gpu）上运行的进程数。
-    - `--run_stage`：管道中要运行的阶段。选项包括：
-        - 阶段1：准备推理数据集，生成元数据
-        - 阶段2：对每个音频文件执行VAD
-        - 阶段3：提取说话人嵌入向量
-        - 阶段4：聚类嵌入向量，并依据聚类结果构建说话人声纹库
-        - 阶段5：评估并生成结果
-    - `--help`：显示脚本的帮助信息。
-    您可以通过运行以下命令查看帮助信息：
-    ```bash
-    ./run_audio_diarization-cluster.sh --help
-    ```
+
+```bash
+./run_audio_diarization-cluster.sh --audio_dir <输入目录> --workspace <工作区> --proc_per_node <每节点进程数> --run_stage <运行阶段> --gpus <gpu列表> --use_gpu(可选参数)
+```
+
+- `--audio_dir`：包含`.wav`文件的目录路径。文件夹名为.wav音频对应的语言，如`chinese`、`english`、`russian`等。
+- `--workspace`：存储结果的工作目录路径。
+- `--gpus`：用于处理的GPU编号。输入格式如"0"(使用cuda:0)，"1 2"(使用cuda:1和cuda:2) ，需要搭配`--use_gpu`参数使用。
+- `--use_gpu` : 是否使用gpu进行处理，不指定该参数默认为False，给出--use_gpu参数则为True
+- `--proc_per_node`：每个节点（gpu）上运行的进程数。
+- `--run_stage`：管道中要运行的阶段。选项包括：
+  - 阶段1：准备推理数据集，生成元数据
+  - 阶段2：对每个音频文件执行VAD
+  - 阶段3：提取说话人嵌入向量
+  - 阶段4：聚类嵌入向量，并依据聚类结果构建说话人声纹库
+  - 阶段5：评估并生成结果
+- `--help`：显示脚本的帮助信息。
+  您可以通过运行以下命令查看帮助信息：
+
+```bash
+./run_audio_diarization-cluster.sh --help
+```
 
 ### 实验示例
 
