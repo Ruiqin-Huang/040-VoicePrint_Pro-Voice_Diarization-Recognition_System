@@ -76,6 +76,7 @@
 
 - `--audio_dir`：包含`.wav`文件的目录路径。文件夹名为.wav音频对应的语言，如`chinese`、`english`、`russian`等。
 - `--workspace`：存储结果的工作目录路径。
+- `--num_speakers`：指定说话人分割系统要分割的说话人数量。默认值为2，即默认输入的原始音频中每条音频包含2个说话人。
 - `--gpus`：用于处理的GPU编号。输入格式如"0"(使用cuda:0)，"1 2"(使用cuda:1和cuda:2) ，需要搭配`--use_gpu`参数使用。
 - `--use_gpu` : 是否使用gpu进行处理，不指定该参数默认为False，给出--use_gpu参数则为True
 - `--proc_per_node`：每个节点（gpu）上运行的进程数。
@@ -103,17 +104,17 @@ chmod +x run_audio_diarization-cluster.sh
 
 1. 实验1：demo_chinese_10_wavs 将10条中文音频文件进行说话人分割并聚类
 ```bash
-./run_audio_diarization-cluster.sh --audio_dir "./example/chinese" --workspace "./workspace/demo_chinese_10_wavs" --proc_per_node 8 --run_stage "1 2 3 4" --gpus "1" --use_gpu
+./run_audio_diarization-cluster.sh --audio_dir "./example/chinese" --workspace "./workspace/demo_chinese_10_wavs" --num_speakers 2 --proc_per_node 8 --run_stage "1 2 3 4" --gpus "0" --use_gpu
 ```
 
 2. 实验2：demo_english_10_wavs 将10条英文音频文件进行说话人分割并聚类
 ```bash
-./run_audio_diarization-cluster.sh --audio_dir "./example/english" --workspace "./workspace/demo_english_10_wavs" --proc_per_node 8 --run_stage "1 2 3 4" --gpus "1" --use_gpu
+./run_audio_diarization-cluster.sh --audio_dir "./example/english" --workspace "./workspace/demo_english_10_wavs" --num_speakers 2 --proc_per_node 8 --run_stage "1 2 3 4" --gpus "0" --use_gpu
 ```
 
 3. 实验3：demo_russian_10_wavs 将10条俄语音频文件进行说话人分割并聚类
 ```bash
-./run_audio_diarization-cluster.sh --audio_dir "./example/russian" --workspace "./workspace/demo_russian_10_wavs" --proc_per_node 8 --run_stage "1 2 3 4" --gpus "1" --use_gpu
+./run_audio_diarization-cluster.sh --audio_dir "./example/russian" --workspace "./workspace/demo_russian_10_wavs" --num_speakers 2 --proc_per_node 8 --run_stage "1 2 3 4" --gpus "0" --use_gpu
 ```
 
 ### 实验输出
@@ -335,4 +336,8 @@ python ${SCRIPT_DIR}/local/audio_diarization.py --input_dir "$audio_dir" --works
         }
   ```
 
+## work in progress
 
+1. 使用更大规模的数据集开展全面的评估，包括说话人分割准确率，聚类效果等指标的评估。
+2. 开发语音转文字模块
+3. 重设模型接口及

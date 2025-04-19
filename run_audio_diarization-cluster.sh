@@ -3,7 +3,6 @@ set -e
 . ./path.sh || exit 1 # source path.sh
 
 # Usage: 
-# ./run_audio_diarization-cluster.sh --audio_dir <audio_dir> --workspace <workspace> --gpus <gpus> --proc_per_node <proc_per_node> --speaker_model_id <speaker_model_id>
 # ./run_audio_diarization-cluster.sh --help to see the help message
 
 # 定义默认值
