@@ -1,0 +1,26 @@
+fbank_dim: 80
+embedding_size: 192
+
+feature_extractor:
+  obj: speakerlab.process.processor.FBank
+  args:
+    n_mels: <fbank_dim>
+    sample_rate: 16000
+    mean_nor: True
+
+embedding_model:
+  obj: speakerlab.models.campplus.DTDNN.CAMPPlus
+  args:
+    feat_dim: <fbank_dim>
+    embedding_size: <embedding_size>
+
+cluster:
+  obj: speakerlab.process.cluster.CommonClustering 
+  args:
+    cluster_type: spectral # 指定使用谱聚类算法
+    mer_cos: 0.85 # 余弦相似度阈值，合并余弦相似度阈值。当两个聚类中心的余弦相似度超过0.9时，会被考虑合并为同一个聚类。值越高，合并条件越严格；值越低，更容易合并不同聚类
+    min_num_spks: 1 # 最小说话人数量，聚类结果至少会有1个类别
+    max_num_spks: 200 # 最大说话人数量限制，防止过度细分
+    min_cluster_size: 1 # 最小聚类大小，每个聚类至少需要包含1个样本
+    oracle_num: null # 预设的聚类数量，设为null表示系统将自动确定最佳聚类数量，如果已知说话人数量，可以在这里指定具体数字
+    pval: 0.012 # p值阈值，用于确定聚类边界，控制聚类精细度：值越小，聚类越精细(产生更多聚类)；值越大，聚类越粗略(产生更少聚类)

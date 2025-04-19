@@ -1,0 +1,17 @@
+{
+    "framework": "pytorch",
+    "task": "speaker-diarization",
+    "model": {
+        "type": "cluster-backend",
+        "model_config": {
+            "merge_thr": 0.78
+        },
+        "sample_rate": 16000,
+        "speaker_model": "damo/speech_campplus_sv_zh-cn_16k-common",
+        "change_locator": "damo/speech_campplus-transformer_scl_zh-cn_16k-common",
+        "vad_model": "damo/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    },
+    "pipeline": {
+        "type": "segmentation-clustering"
+    }
+}
