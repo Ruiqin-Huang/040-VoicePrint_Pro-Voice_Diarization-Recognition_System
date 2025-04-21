@@ -24,6 +24,8 @@
     - **prepare_subseg_json.py**：在进行嵌入向量提取前，从VAD结果生成用于嵌入提取的子片段JSON文件。生成的子片段json文件保存在workspace/vad/文件夹中。
     - **extract_diar_embeddings.py**：使用预训练的声纹向量提取模型从音频文件中提取说话人嵌入向量并以指定格式保存结果。生成的嵌入文件。生成的音频声纹嵌入文件保存在workspace/emb/文件夹中。
     - **cluster_and_postprocess.py**：聚类提取的嵌入向量并生成结果，并依据聚类结果构建说话人声纹库。生成的聚类结果保存在workspace/result文件夹中，说话人声纹库保存在workspace/result/voiceprintlib
+  - 语音识别系统
+    - **speech_recognition.py**：语音识别，将上传的所有音频文件内容转换为对应语言的文字，并输出包含每个片段的始末时间及内容的JSON文件。生成的json文件保存在workspace/result/text/文件夹中。
 
 - **utils/**：包含用于屏蔽：
   - **audio_utils.py**：用于加载和操作音频数据的实用函数。
@@ -339,7 +341,6 @@ python ${SCRIPT_DIR}/local/audio_diarization.py --input_dir "$audio_dir" --works
 ## work in progress
 
 1. 使用更大规模的数据集开展全面的评估，包括说话人分割准确率，聚类效果等指标的评估。
-2. 开发语音转文字模块。
-3. 开发说话人声纹识别模块。
-4. 优化模型输入输出接口。
+2. 开发说话人声纹识别模块。
+3. 优化模型输入输出接口。
 
