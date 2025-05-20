@@ -25,6 +25,10 @@ addict
 datasets
 simplejson
 pydub
+# ASR依赖
 openai-whisper
-fastapi
-uvicorn
+# fastapi依赖
+fastapi 
+uvicorn 
+python-multipart 
+pydantic
