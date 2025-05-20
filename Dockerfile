@@ -9,6 +9,12 @@ RUN pip install --user -r requirements.txt
 FROM python:3.8-slim
 WORKDIR /app
 
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # 复制已安装的依赖
 COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
