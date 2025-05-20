@@ -1,4 +1,4 @@
-from whisper import whisper
+import whisper
 import os
 import argparse
 from tqdm import tqdm
@@ -75,6 +75,38 @@ def speech2text(input_dir, workspace, language, gpu="", use_gpu=True):
         except Exception as e:
             print(f"Error processing {file}: {str(e)}")
             continue
+
+def transcribe_audio_file(whisper_model, file_path: str, language: str = "zh"):
+    """转录单个音频文件"""
+    # 设置prompt（中文优化）
+    initial_prompt = "这是一段双人对话。生于忧患，死于安乐。岂不快哉？" if language == "zh" else None
+    
+    # 执行语音识别
+    result = whisper_model.transcribe(
+        file_path, 
+        language=language,
+        initial_prompt=initial_prompt
+    )
+    
+    # 提取完整文本
+    full_text = result["text"]
+    
+    # 提取带时间戳的段落
+    segments = [
+        {
+            "start": segment["start"],
+            "end": segment["end"],
+            "text": segment["text"],
+            "no_speech_prob": segment["no_speech_prob"]
+        }
+        for segment in result["segments"]
+    ]
+    
+    return {
+        "full_text": full_text,
+        "segments": segments,
+        "language": language
+    }
 
 def main(input_dir, workspace, language, gpu="", use_gpu=True):
     print(f"[INFO] 音频文件读取自：{input_dir}")
