@@ -610,6 +610,16 @@ files对象包含以下字段：
 }
 ```
 
+### 通过APIFOX进行测试
+
+1. 语音分割接口：/api/speech_segmentation
+
+![APIFOX-speech_segmentation](./readme_assets/apifox-1.png)
+
+2. 语音识别接口：/api/speech_recognition
+
+![APIFOX-speech_segmentation](./readme_assets/apifox-2.png)
+
 ## work in progress
 
 1. 使用更大规模的数据集开展全面的评估，包括说话人分割准确率，聚类效果等指标的评估。
