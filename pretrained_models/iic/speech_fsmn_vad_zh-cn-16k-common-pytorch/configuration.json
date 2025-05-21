@@ -8,6 +8,6 @@
     "config":"config.yaml",
     "frontend_conf":{"cmvn_file": "am.mvn"}},
   "model_name_in_hub": {
-    "ms":"iic/speech_fsmn_vad_zh-cn-16k-common-pytorch", 
+    "ms":"./pretrained_models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch", 
     "hf":""}
 }

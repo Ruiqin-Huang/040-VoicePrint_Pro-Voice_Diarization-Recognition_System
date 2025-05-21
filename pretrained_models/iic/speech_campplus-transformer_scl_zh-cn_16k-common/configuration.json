@@ -1,0 +1,18 @@
+{
+    "framework": "pytorch",
+    "task": "speaker-diarization",
+    "model": {
+        "type": "scl-sd",
+        "model_config": {
+            "sample_rate": 16000,
+            "fbank_dim": 80,
+            "frame_size": 512,
+            "anchor_size": 192
+        },
+        "pretrained_encoder": "campplus_cn_encoder.pt",
+        "pretrained_backend": "transformer_backend.pt"
+    },
+    "pipeline": {
+        "type": "speaker-change-locating"
+    }
+}

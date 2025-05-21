@@ -338,6 +338,278 @@ python ${SCRIPT_DIR}/local/audio_diarization.py --input_dir "$audio_dir" --works
         }
   ```
 
+## API接口开发
+
+### 公用数据格式
+
+#### 公用数据规范
+
+| 字段名 | 说明 |
+| ------ | ---- |
+| 日期 | 格式为yyyy-MM-dd HH:mm:ss |
+| data | 请求返回报文 |
+| retcode | 返回码；默认为200000：请求成功 |
+| msg | 返回失败提示信息 |
+| 编码方式 | UTF-8 |
+
+#### 响应码说明
+
+| 响应码 | 说明 |
+| ------ | ---- |
+| 200000 | 请求成功 |
+| 100000 | 请求参数错误 |
+| 905000 | 操作错误 |
+| 999999 | 未知异常错误 |
+
+### 运行说明
+
+#### 源码运行
+
+```bash
+python -m app/main
+```
+
+#### docker运行
+
+```bash
+# 构建镜像
+docker build -t voiceprint-pro-api:1.0 .
+
+# 启动容器 - 使用GPU（部署需要约8G显存/内存，约需1分钟部署才能投入运行）
+docker run -d --name voiceprint-api \
+  --gpus all \
+  -p 8000:8000 \
+  -v $(pwd)/pretrained_models:/app/pretrained_models \
+  -v $(pwd)/workspace:/app/workspace \
+  voiceprint-pro-api:1.0 \
+
+# 关闭容器
+docker stop voiceprint-api
+# 删除停止的容器（删除前不允许运行同名容器）
+docker rm voiceprint-api
+
+# 运行容器 - 不使用GPU
+# docker run -d --name voiceprint-api \
+#   -p 8000:8000 \
+#   -v $(pwd)/pretrained_models:/app/pretrained_models \
+#   -v $(pwd)/workspace:/app/workspace \
+#   voiceprint-pro-api:1.0
+
+# 查看已启动容器的实时输出（部署需要约8G显存/内存，约需1分钟部署才能投入运行）
+# docker logs -f voiceprint-api
+```
+
+### 项目结构
+
+```text
+├── app/
+│   ├── __init__.py
+│   ├── main.py                      # 应用入口点
+│   ├── config/                      # 配置管理
+│   │   ├── __init__.py
+│   │   └── settings.py
+│   ├── api/                         # API路由
+│   │   ├── __init__.py 
+│   │   ├── v1/
+│   │   │   ├── __init__.py
+│   │   │   ├── endpoints/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── speech_recognition.py
+│   │   │   │   └── speech_segmentation.py
+│   │   │   └── router.py            # 路由聚合
+│   ├── core/                        # 核心组件
+│   │   ├── __init__.py
+│   │   └── error_codes.py           # 响应码定义
+│   ├── models/                      # 数据模型
+│   │   ├── __init__.py
+│   │   ├── common.py                # 通用模型
+│   │   ├── speech_recognition.py
+│   │   └── speech_segmentation.py
+│   └── services/                    # 业务逻辑
+│       ├── __init__.py
+│       ├── speech_recognition.py
+│       └── speech_segmentation.py
+└── utils/                           # 工具函数
+    ├── __init__.py
+    ├── io_suppressor.py
+    └── helpers.py
+```
+
+### 语音切分接口
+
+#### 接口概述
+
+语音分割API是一个基于FastAPI开发的服务，用于对音频文件进行说话人分离（Speaker Diarization）处理。该API能够从单个或多个音频文件中识别不同说话人，并将每个说话人的语音内容分离为独立的音频文件。系统会自动判断输入音频是单人、双人还是多人对话。
+
+- **URL**: `/api/speech_segmentation`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收音频文件路径列表，对每个文件进行说话人分离处理，返回生成的音频文件信息。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+
+| 参数名 | 类型 | 必填 | 说明 |
+| ------ | ---- | ---- | ---- |
+| files  | Array[String] | 是 | 音频文件的路径列表，每个路径必须指向一个有效的音频文件 |
+
+请求体示例：（注意，docker中并不包含测试用音频文件，建议先构建OBS桶，将音频文件上传到OBS桶中，使用OBS桶的URL进行测试。或者，先开发语音保存/生成模块）
+```json
+{
+  "files": [
+    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en1.wav",
+    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en2.wav"
+  ]
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含处理结果，失败时可能为null |
+
+data对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| file_type | Array[String] | 按输入文件顺序存储的语音类别（"单人"、"双人"、"多人"、"未知"或"错误"） |
+| files | Array[Object] | 分离后生成的音频文件信息列表 |
+
+files对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| file_id | String | 生成的文件唯一标识（UUID格式） |
+| source_url | String | 对应的原始音频文件路径 |
+| file_url | String | 分离后生成的音频文件路径 |
+
+成功响应示例：
+```json
+{
+  "retcode": 200000,
+  "msg": "success",
+  "data": {
+    "file_type": ["双人", "单人"],
+    "files": [
+      {
+        "file_id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+        "source_url": "/path/to/audio1.wav",
+        "file_url": "./data/audio_segmentation/audio1_speaker0.wav"
+      },
+      {
+        "file_id": "b2c3d4e5-f6a7-8901-bcde-234567890abc",
+        "source_url": "/path/to/audio1.wav",
+        "file_url": "./data/audio_segmentation/audio1_speaker1.wav"
+      },
+      {
+        "file_id": "c3d4e5f6-a7b8-9012-cdef-3456789abcd0",
+        "source_url": "/path/to/audio2.mp3",
+        "file_url": "./data/audio_segmentation/audio2_speaker0.wav"
+      }
+    ]
+  }
+}
+```
+
+### 语音识别接口
+
+实现语音转文字，根据上传的语音素材文件进行语音识别。
+
+- **URL**: `/api/speech_recognition`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收音频文件路径列表，对每个文件进行语音识别处理，返回识别结果。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+| 参数名 | 类型 | 必填 | 说明 |
+| ------ | ---- | ---- | ---- |
+| files  | Array[String] | 是 | 音频文件的路径列表，每个路径必须指向一个有效的音频文件 |
+| use_gpu | Boolean | 否 | 是否使用GPU进行处理，默认为false |
+| gpu | Integer | 否 | 指定使用的GPU编号，仅在use_gpu为true时有效 |
+| language | String | 否 | 指定音频语言，可选值包括"en"(英语)、"zh"(中文)等，用于提高识别准确度 |
+
+请求体示例：（注意，docker中并不包含测试用音频文件，建议先构建OBS桶，将音频文件上传到OBS桶中，使用OBS桶的URL进行测试。或者，先开发语音保存/生成模块）
+```json
+{
+  "files": [
+    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en1.wav",
+    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en2.wav"
+  ],
+  "use_gpu": true,
+  "gpu": 0,
+  "language": "en"
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含识别结果，失败时可能为null |
+
+data对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| calling_party_number | String | 主叫方电话号码 |
+| called_party_number | String | 被叫方电话号码 |
+| keywords | Array[String] | 通话中检测到的关键词列表 |
+| labels | Array[String] | 通话内容的标签分类 |
+| call_original | String | 通话原始内容文本 |
+| call_translation | String | 通话内容的翻译文本（如适用） |
+| files | Array[Object] | 相关通话文件信息列表 |
+
+files对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| file_id | String | 生成的文件唯一标识（UUID格式） |
+| phone_number | String | 文件关联的电话号码 |
+| identity | String | 通话方身份信息 |
+| call_record | String | 通话记录信息 |
+| create_time | String | 文件创建时间 |
+| file_url | String | 文件访问路径 |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "calling_party_number": "138040534",
+        "called_party_number": "",
+        "keywords": [
+            "What",
+            "Director.",
+            "can"
+        ],
+        "labels": [
+            "自动识别"
+        ],
+        "call_original": " Director. What can I do for you? ,...",
+        "call_translation": "Translated(en->en):  Director. What can I do for you? , ...",
+        "files": [
+            {
+                "file_id": "20f864e9-dcc1-43a5-892d-4e997e8eb9b8",
+                "phone_number": "138040534",
+                "identity": "主叫",
+                "call_record": " Director. What can I do for you? ...",
+                "create_time": "2025-05-22 04:05:34",
+                "file_url": "./example/chinese/20f864e9-dcc1-43a5-892d-4e997e8eb9b8.json"
+            }
+        ]
+    }
+}
+```
+
 ## work in progress
 
 1. 使用更大规模的数据集开展全面的评估，包括说话人分割准确率，聚类效果等指标的评估。

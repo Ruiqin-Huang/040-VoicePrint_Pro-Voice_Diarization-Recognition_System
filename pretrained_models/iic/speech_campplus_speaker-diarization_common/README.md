@@ -34,6 +34,7 @@ widgets:
           - data: git://examples/2speakers_example.wav
     output:
         displayType: Text
+        displayValueMapping: text
     inferencespec:
       cpu: 8 #CPU数量
       memory: 1024
@@ -68,7 +69,7 @@ widgets:
 如果在本地使用，需要先安装modelscope并配置相应的环境，相关教程请参考[这里](https://modelscope.cn/docs/%E7%8E%AF%E5%A2%83%E5%AE%89%E8%A3%85)。
 对于有开发需求的使用者，特别推荐您使用Notebook进行离线处理。先登录ModelScope账号，点击模型页面右上角的“在Notebook中打开”按钮出现对话框，首次使用会提示您关联阿里云账号，按提示操作即可。关联账号后可进入选择启动实例界面，选择计算资源，建立实例，待实例创建完成后进入开发环境，输入api调用实例。
 ``` python
-# 版本要求 modelscope version >= 1.7.0
+# 版本要求 modelscope version 升级至最新版本 funasr 升级至最新版本
 from modelscope.pipelines import pipeline
 sd_pipeline = pipeline(
     task='speaker-diarization',
@@ -80,9 +81,6 @@ result = sd_pipeline(input_wav)
 print(result)
 # 如果有先验信息，输入实际的说话人数，会得到更准确的预测结果
 result = sd_pipeline(input_wav, oracle_num=2)
-print(result)
-# 如果发现cpu推理过慢的情况，可调小batch_size参数
-result = sd_pipeline(input_wav, batch_size=1)
 print(result)
 ```
 # 在3D-Speaker上使用
@@ -105,5 +103,5 @@ bash run.sh
 
 # 3D-Speaker 开发者社区钉钉群
 <div align=left>
-<img src="dingding.jpg" width="260" />
+<img src="ding.png" width="300" />
 </div>

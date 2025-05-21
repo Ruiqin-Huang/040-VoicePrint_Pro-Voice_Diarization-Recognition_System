@@ -1,3 +1,10 @@
+# fastapi依赖
+fastapi 
+uvicorn 
+python-multipart 
+pydantic<2.0.0
+# VoicePrintPro依赖
+openai-whisper
 torch>=1.10.1
 torchaudio>=0.10.1
 numpy>=1.20.0,<1.24
@@ -25,10 +32,4 @@ addict
 datasets
 simplejson
 pydub
-# ASR依赖
-openai-whisper
-# fastapi依赖
-fastapi 
-uvicorn 
-python-multipart 
-pydantic
+requests

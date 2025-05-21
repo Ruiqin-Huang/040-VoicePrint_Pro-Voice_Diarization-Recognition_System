@@ -1,3 +1,5 @@
 # Exclude example and workspace directories
 /example/
 /workspace/
+/data/
+/pretrained_models/whisper/
