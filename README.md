@@ -366,7 +366,7 @@ python ${SCRIPT_DIR}/local/audio_diarization.py --input_dir "$audio_dir" --works
 #### 源码运行
 
 ```bash
-python -m app/main
+python -m app.main
 ```
 
 #### docker运行
