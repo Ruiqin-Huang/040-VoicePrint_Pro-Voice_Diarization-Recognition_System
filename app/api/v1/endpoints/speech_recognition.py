@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 import traceback
 from typing import List
 
+from app.config.path_mapper import PathMapper
+from app.main import get_path_mapper
 from app.models.common import ResponseResult
 from app.models.speech_recognition import (
     SpeechRecognitionRequest, 
@@ -15,7 +17,7 @@ from utils.helpers import extract_keywords, translate_text
 router = APIRouter(prefix="/api")
 
 @router.post("/speech_recognition", response_model=ResponseResult)
-async def speech_recognition(request: SpeechRecognitionRequest):
+async def speech_recognition(request: SpeechRecognitionRequest, path_mapper: PathMapper = Depends(get_path_mapper)):
     """语音识别API - 将语音转换为文本"""
     try:
         if not request.files:
@@ -27,6 +29,7 @@ async def speech_recognition(request: SpeechRecognitionRequest):
         
         processed_files, invalid_files = await process_speech_files(
             request.files, 
+            path_mapper,
             language=request.language
         )
         

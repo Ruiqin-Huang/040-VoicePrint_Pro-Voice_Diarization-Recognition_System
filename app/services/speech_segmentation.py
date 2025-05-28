@@ -8,6 +8,7 @@ from typing import List, Tuple, Dict
 from modelscope.pipelines import pipeline
 
 from app.config.settings import settings
+from app.config.path_mapper import PathMapper
 from utils.helpers import get_file_type
 from utils.io_suppressor import suppress_stdout_stderr
 import requests
@@ -61,7 +62,7 @@ async def download_file(url: str) -> str:
     except Exception as e:
         raise Exception(f"下载文件失败: {str(e)}")
 
-async def process_audio_files(file_paths: List[str]) -> Tuple[List[Dict], List[str], List[str]]:
+async def process_audio_files(file_paths: List[str], path_mapper: PathMapper) -> Tuple[List[Dict], List[str], List[str]]:
     """处理语音分离"""
     # 创建输出目录
     output_dir = settings.SEGMENTATION_OUTPUT_DIR
@@ -91,6 +92,12 @@ async def process_audio_files(file_paths: List[str]) -> Tuple[List[Dict], List[s
     for file_path in tqdm(file_paths, desc="Processing audio files"):
         local_path = file_path
         try:
+            # 转换为容器内路径
+            local_path = path_mapper.host_to_container(file_path)
+        
+            if not path_mapper.validate_host_path(file_path):
+                raise ValueError(f"非法路径访问: {file_path}")
+            
             # 检查是否为URL，如果是则下载到本地
             if await is_url(file_path):
                 local_path = await download_file(file_path)
@@ -131,7 +138,7 @@ async def process_audio_files(file_paths: List[str]) -> Tuple[List[Dict], List[s
                 results.append({
                     "file_id": file_id,
                     "source_url": file_path,
-                    "file_url": output_path
+                    "file_url": path_mapper.container_to_host(output_path)
                 })
                 
         except Exception as e:

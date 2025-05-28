@@ -6,6 +6,7 @@ import tempfile
 from tqdm import tqdm  # 添加tqdm导入
 from urllib.parse import urlparse
 from typing import List, Dict
+from app.config.path_mapper import PathMapper
 from app.config.settings import settings
 from utils.helpers import format_datetime, generate_phone_number
 import whisper
@@ -72,7 +73,9 @@ def transcribe_audio_file(whisper_model, file_path: str, language: str = "zh"):
 
 def save_segments_to_file(segments: List[Dict], source_file_path: str, file_id: str) -> str:
     """将转录segments保存为JSON文件到固定目录"""
-    output_dir = "./data/speech_recognition"  # 改为固定输出目录
+    output_dir = settings.RECOGNITION_OUTPUT_DIR
+    os.makedirs(output_dir, exist_ok=True)
+
     json_filename = f"{file_id}.json"
     json_path = os.path.join(output_dir, json_filename)
     
@@ -83,7 +86,7 @@ def save_segments_to_file(segments: List[Dict], source_file_path: str, file_id: 
     
     return str(json_path)
 
-async def process_speech_files(files: List[str], language: str = "zh") -> tuple:
+async def process_speech_files(files: List[str], path_mapper: PathMapper, language: str = "zh") -> tuple:
     """处理语音识别文件"""
     processed_files = []
     invalid_files = []
@@ -91,8 +94,13 @@ async def process_speech_files(files: List[str], language: str = "zh") -> tuple:
     
     # 添加tqdm进度条
     for file_path in tqdm(files, desc="Processing audio files"):
-        local_path = file_path
         try:
+            # 转换为容器内路径
+            local_path = path_mapper.host_to_container(file_path)
+        
+            if not path_mapper.validate_host_path(file_path):
+                raise ValueError(f"非法路径访问: {file_path}")
+            
             # 检查是否为URL，如果是则下载到本地
             if await is_url(file_path):
                 local_path = await download_file(file_path)
@@ -107,7 +115,7 @@ async def process_speech_files(files: List[str], language: str = "zh") -> tuple:
             
             file_id = str(uuid.uuid4())
             phone_number = generate_phone_number()
-            file_url = save_segments_to_file(result["segments"], local_path, file_id)
+            file_url = path_mapper.container_to_host(save_segments_to_file(result["segments"], local_path, file_id))
             
             processed_files.append({
                 "file_id": file_id,
