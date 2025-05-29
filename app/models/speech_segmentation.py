@@ -1,8 +1,14 @@
 from typing import List, Optional
 from pydantic import BaseModel, validator
 
+# 请求中的文件对象
+class FileRequest(BaseModel):
+    id: str
+    file_path: str
+
+# 请求模型
 class SpeechSegmentationRequest(BaseModel):
-    files: List[str]
+    files: List[FileRequest]
     
     @validator('files')
     def files_must_not_be_empty(cls, v):
@@ -10,11 +16,13 @@ class SpeechSegmentationRequest(BaseModel):
             raise ValueError("文件列表不能为空")
         return v
 
-class FileInfo(BaseModel):
-    file_id: str
-    source_url: str
+# 单个分割后的文件信息
+class SegmentFile(BaseModel):
+    id: str
     file_url: str
 
-class ResponseData(BaseModel):
-    file_type: List[str] = []  # 按输入文件顺序存储每个文件的语音类别
-    files: List[FileInfo] = []
+# 单个输入文件的处理结果
+class FileResult(BaseModel):
+    file_id: str
+    file_type: str  # "单人"、"双人"、"多人"等
+    segment_files: List[SegmentFile]

@@ -444,22 +444,28 @@ docker rm voiceprint-api
 - **URL**: `/api/speech_segmentation`
 - **方法**: POST
 - **请求格式**: application/json
-- **功能**: 接收音频文件路径列表，对每个文件进行说话人分离处理，返回生成的音频文件信息。
+- **功能**: 接收音频文件路径信息，对每个文件进行说话人分离处理，返回生成的音频文件信息。
 
 #### 请求参数
 
 请求体使用JSON格式，包含以下字段：
 
-| 参数名 | 类型 | 必填 | 说明 |
+| 参数名 | 类型 | 必填 | 描述 |
 | ------ | ---- | ---- | ---- |
-| files  | Array[String] | 是 | 音频文件的路径列表，每个路径必须指向一个有效的音频文件 |
+| files | Array[Object] | 是 | 语音文件素材地址数组 |
 
-请求体示例：（注意，docker中并不包含测试用音频文件，建议先构建OBS桶，将音频文件上传到OBS桶中，使用OBS桶的URL进行测试。或者，先开发语音保存/生成模块）
+files对象包含以下字段：
+| 参数名 | 类型 | 必填 | 描述 |
+| ------ | ---- | ---- | ---- |
+| id | String | 是 | 文本id |
+| file_path | String | 是 | 文本路径（此路径为本地路径，可由调用方地址映射到语音container的某个目录） |
+
+请求体示例：
 ```json
 {
   "files": [
-    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en1.wav",
-    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en2.wav"
+    {"id": "1234", "file_path": "/data/file_input_path"},
+    {"id": "2345", "file_path": "/data/file_input_path"}
   ]
 }
 ```
@@ -472,48 +478,55 @@ API响应使用JSON格式，包含以下字段：
 | ------ | ---- | ---- |
 | retcode | Integer | 响应码，200000表示成功 |
 | msg | String | 响应消息，描述请求处理结果 |
-| data | Object | 响应数据，包含处理结果，失败时可能为null |
+| data | Array[Object] | 响应数据，包含处理结果，失败时可能为null |
 
-data对象包含以下字段：
+data数组中的每个对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | ------ | ---- | ---- |
-| file_type | Array[String] | 按输入文件顺序存储的语音类别（"单人"、"双人"、"多人"、"未知"或"错误"） |
-| files | Array[Object] | 分离后生成的音频文件信息列表 |
+| file_id | String | 原切分文件id |
+| file_type | String | 语音类别（"单人"、"双人"、"多人"、"未知"或"错误"） |
+| segment_files | Array[Object] | 切分后的文件集合 |
 
-files对象包含以下字段：
+segment_files数组中的每个对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | ------ | ---- | ---- |
-| file_id | String | 生成的文件唯一标识（UUID格式） |
-| source_url | String | 对应的原始音频文件路径 |
-| file_url | String | 分离后生成的音频文件路径 |
+| id | String | 切分后的文件id |
+| file_url | String | 切分后的文件地址 |
 
 成功响应示例：
 ```json
 {
   "retcode": 200000,
   "msg": "success",
-  "data": {
-    "file_type": ["双人", "单人"],
-    "files": [
-      {
-        "file_id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-        "source_url": "/path/to/audio1.wav",
-        "file_url": "./data/audio_segmentation/audio1_speaker0.wav"
-      },
-      {
-        "file_id": "b2c3d4e5-f6a7-8901-bcde-234567890abc",
-        "source_url": "/path/to/audio1.wav",
-        "file_url": "./data/audio_segmentation/audio1_speaker1.wav"
-      },
-      {
-        "file_id": "c3d4e5f6-a7b8-9012-cdef-3456789abcd0",
-        "source_url": "/path/to/audio2.mp3",
-        "file_url": "./data/audio_segmentation/audio2_speaker0.wav"
-      }
-    ]
-  }
+  "data": [
+    {
+      "file_id": "1234",
+      "file_type": "双人",
+      "segment_files": [
+        {
+          "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+          "file_url": "./data/audio_segmentation/audio1_speaker0.wav"
+        },
+        {
+          "id": "b2c3d4e5-f6a7-8901-bcde-234567890abc",
+          "file_url": "./data/audio_segmentation/audio1_speaker1.wav"
+        }
+      ]
+    },
+    {
+      "file_id": "2345",
+      "file_type": "单人",
+      "segment_files": [
+        {
+          "id": "c3d4e5f6-a7b8-9012-cdef-3456789abcd0",
+          "file_url": "./data/audio_segmentation/audio2_speaker0.wav"
+        }
+      ]
+    }
+  ]
 }
 ```
+
 
 ### 语音识别接口
 

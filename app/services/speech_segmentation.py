@@ -6,6 +6,7 @@ import librosa
 import soundfile as sf
 from typing import List, Tuple, Dict
 from modelscope.pipelines import pipeline
+from app.models.speech_segmentation import FileRequest
 
 from app.config.settings import settings
 from app.config.path_mapper import PathMapper
@@ -62,7 +63,7 @@ async def download_file(url: str) -> str:
     except Exception as e:
         raise Exception(f"下载文件失败: {str(e)}")
 
-async def process_audio_files(file_paths: List[str], path_mapper: PathMapper) -> Tuple[List[Dict], List[str], List[str]]:
+async def process_audio_files(file_requests: List[FileRequest], path_mapper: PathMapper) -> List[Dict]:
     """处理语音分离"""
     # 创建输出目录
     output_dir = settings.SEGMENTATION_OUTPUT_DIR
@@ -86,11 +87,13 @@ async def process_audio_files(file_paths: List[str], path_mapper: PathMapper) ->
     
     results = []
     invalid_files = []
-    file_types = []  # 存储每个输入文件的类型
     temp_files = []  # 存储需要清理的临时文件
     
-    for file_path in tqdm(file_paths, desc="Processing audio files"):
+    for file_request in file_requests:
+        file_id = file_request.id
+        file_path = file_request.file_path
         local_path = file_path
+        
         try:
             # 转换为容器内路径
             local_path = path_mapper.host_to_container(file_path)
@@ -106,7 +109,11 @@ async def process_audio_files(file_paths: List[str], path_mapper: PathMapper) ->
             # 验证文件存在
             if not os.path.exists(local_path):
                 invalid_files.append(f"文件不存在: {file_path}")
-                file_types.append("未知")
+                results.append({
+                    "file_id": file_id,
+                    "file_type": "未知",
+                    "segment_files": []
+                })
                 continue
                 
             # 分割说话人
@@ -123,28 +130,38 @@ async def process_audio_files(file_paths: List[str], path_mapper: PathMapper) ->
             base_name, ext = os.path.splitext(file_name)
             
             file_type = get_file_type(actual_speakers)
-            file_types.append(file_type)
+            segment_files = []
             
             # 处理每个说话人
             for i in range(actual_speakers):
-                file_id = str(uuid.uuid4())
+                segment_id = str(uuid.uuid4())
                 output_filename = f"{base_name}_speaker{i}.wav"
                 output_path = os.path.join(output_dir, output_filename)
                 
                 # 提取说话人音频
                 await extract_speaker_audio(local_path, result['text'], i, output_path)
                 
-                # 添加到结果列表
-                results.append({
-                    "file_id": file_id,
-                    "source_url": file_path,
+                # 添加到片段列表
+                segment_files.append({
+                    "id": segment_id,
                     "file_url": path_mapper.container_to_host(output_path)
                 })
+            
+            # 添加到结果列表
+            results.append({
+                "file_id": file_id,
+                "file_type": file_type,
+                "segment_files": segment_files
+            })
                 
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
             invalid_files.append(f"{file_path}: {str(e)}")
-            file_types.append("错误")
+            results.append({
+                "file_id": file_id,
+                "file_type": "错误",
+                "segment_files": []
+            })
     
     # 清理临时文件
     for temp_file in temp_files:
@@ -154,7 +171,7 @@ async def process_audio_files(file_paths: List[str], path_mapper: PathMapper) ->
         except Exception:
             pass
     
-    if invalid_files and not results:
+    if invalid_files and not any(len(r["segment_files"]) > 0 for r in results):
         raise Exception(f"所有文件处理失败: {'; '.join(invalid_files)}")
     
-    return results, invalid_files, file_types
+    return results, invalid_files

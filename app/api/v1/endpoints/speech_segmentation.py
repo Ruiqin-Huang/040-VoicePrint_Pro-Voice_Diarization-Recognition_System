@@ -4,7 +4,7 @@ import traceback
 from app.config.path_mapper import PathMapper
 from app.main import get_path_mapper
 from app.models.common import ResponseResult
-from app.models.speech_segmentation import SpeechSegmentationRequest, ResponseData, FileInfo
+from app.models.speech_segmentation import SpeechSegmentationRequest, FileResult, SegmentFile
 from app.services.speech_segmentation import process_audio_files
 from app.core.error_codes import ResponseCode
 
@@ -18,28 +18,38 @@ async def speech_segmentation(request: SpeechSegmentationRequest, path_mapper: P
             return ResponseResult(
                 retcode=ResponseCode.INVALID_PARAM,
                 msg="文件列表为空",
-                data=ResponseData(file_type=[], files=[])
+                data=[]
             )
             
-        file_results, invalid_files, file_types = await process_audio_files(request.files)
+        file_results, invalid_files = await process_audio_files(request.files, path_mapper)
         
-        if invalid_files and file_results:
+        # 将服务层返回的结果转换为响应格式
+        response_data = []
+        for result in file_results:
+            segment_files = [
+                SegmentFile(id=segment["id"], file_url=segment["file_url"])
+                for segment in result["segment_files"]
+            ]
+            
+            response_data.append(
+                FileResult(
+                    file_id=result["file_id"],
+                    file_type=result["file_type"],
+                    segment_files=segment_files
+                )
+            )
+        
+        if invalid_files and any(len(r.segment_files) > 0 for r in response_data):
             return ResponseResult(
                 retcode=ResponseCode.SUCCESS,
                 msg=f"部分文件处理成功，{len(invalid_files)}个文件失败: {'; '.join(invalid_files)}",
-                data=ResponseData(
-                    file_type=file_types,
-                    files=[FileInfo(**item) for item in file_results]
-                )
+                data=response_data
             )
         
         return ResponseResult(
             retcode=ResponseCode.SUCCESS,
             msg="success",
-            data=ResponseData(
-                file_type=file_types,
-                files=[FileInfo(**item) for item in file_results]
-            )
+            data=response_data
         )
         
     except ValueError as e:
