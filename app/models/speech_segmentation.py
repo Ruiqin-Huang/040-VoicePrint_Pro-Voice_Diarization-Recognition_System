@@ -1,10 +1,7 @@
 from typing import List, Optional
 from pydantic import BaseModel, validator
 
-# 请求中的文件对象
-class FileRequest(BaseModel):
-    id: str
-    file_path: str
+from app.models.file_request import FileRequest
 
 # 请求模型
 class SpeechSegmentationRequest(BaseModel):

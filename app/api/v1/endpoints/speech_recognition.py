@@ -6,6 +6,7 @@ from app.config.path_mapper import PathMapper
 from app.dependencies import get_path_mapper
 from app.models.common import ResponseResult
 from app.models.speech_recognition import (
+    RecognizedDetails,
     SpeechRecognitionRequest, 
     SpeechRecognitionResponseData, 
     RecognizedFile
@@ -29,8 +30,7 @@ async def speech_recognition(request: SpeechRecognitionRequest, path_mapper: Pat
         
         processed_files, invalid_files = await process_speech_files(
             request.files, 
-            path_mapper,
-            language=request.language
+            path_mapper
         )
         
         if not processed_files:
@@ -47,19 +47,35 @@ async def speech_recognition(request: SpeechRecognitionRequest, path_mapper: Pat
                     data=None
                 )
         
-        # 合并所有文本用于生成摘要和关键词
-        all_text = " ".join([f["call_record"] for f in processed_files])
         
-        # 构建响应数据
-        response_data = SpeechRecognitionResponseData(
-            calling_party_number=processed_files[0]["phone_number"] if len(processed_files) > 0 else "",
-            called_party_number=processed_files[1]["phone_number"] if len(processed_files) > 1 else "",
-            keywords=extract_keywords(all_text),
-            labels=["自动识别"],
-            call_original=all_text,
-            call_translation=translate_text(all_text, request.language, "en"),
-            files=[RecognizedFile(**f) for f in processed_files]
-        )
+        
+        # 将服务层返回的结果转换为响应格式
+        response_data = []
+        for result in processed_files:
+            print("debug: ", result["recognitions"])
+            recognized_files = [
+                RecognizedFile(
+                    identity=recognition["identity"],
+                    call_records=recognition["text"],
+                    call_records_details=RecognizedDetails(
+                        start=recognition["start_time"],
+                        end=recognition["end_time"],
+                        text=translate_text(recognition["text"], "zh"),
+                        no_speech_prob=recognition["no_speech_prob"]
+                    )
+                )
+                for recognition in result["recognitions"]
+            ]
+            print("debug: ", recognized_files)
+
+            response_data.append(
+                SpeechRecognitionResponseData(
+                    file_id=result["file_id"],
+                    call_original=result["call_original"],
+                    call_translation=translate_text(result["call_original"], "zh"),
+                    call_records_collections=recognized_files
+                )
+            )
         
         if invalid_files:
             return ResponseResult(

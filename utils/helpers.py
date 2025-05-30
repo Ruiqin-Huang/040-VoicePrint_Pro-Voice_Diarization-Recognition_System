@@ -13,9 +13,9 @@ def extract_keywords(text: str) -> List[str]:
     """从文本中提取关键词"""
     return list(set(text.split()[:3])) if text else []
 
-def translate_text(text: str, src_lang: str, tgt_lang: str = "zh") -> str:
+def translate_text(text: str, tgt_lang: str = "zh") -> str:
     """文本翻译"""
-    return f"Translated({src_lang}->{tgt_lang}): {text}"
+    return f"Translated to {tgt_lang}: {text}"
 
 def get_file_type(speaker_count):
     """根据说话人数量确定语音类别"""
