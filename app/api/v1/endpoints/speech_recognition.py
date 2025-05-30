@@ -3,7 +3,7 @@ import traceback
 from typing import List
 
 from app.config.path_mapper import PathMapper
-from app.main import get_path_mapper
+from app.dependencies import get_path_mapper
 from app.models.common import ResponseResult
 from app.models.speech_recognition import (
     SpeechRecognitionRequest, 

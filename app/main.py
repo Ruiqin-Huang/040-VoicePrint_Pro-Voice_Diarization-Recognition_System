@@ -8,28 +8,10 @@ from app.api.v1.router import api_router
 from app.config.settings import settings
 from app.config.path_mapper import PathMapper
 
-def get_docker_mounts() -> dict:
-    """自动获取当前容器的挂载点映射"""
-    try:
-        cmd = "docker inspect --format='{{json .Mounts}}' $(hostname)"
-        result = subprocess.check_output(cmd, shell=True).decode()
-        return {m['Destination']: m['Source'] for m in json.loads(result)}
-    except Exception as e:
-        if settings.DEBUG:
-            print(f"无法获取Docker挂载点: {str(e)}")
-        return {}
-
 def auto_detect_mappings() -> tuple:
     """自动识别输入输出路径映射"""
-    mounts = get_docker_mounts()
-    
-    # 从settings.py获取容器内路径
-    container_input = str(Path(settings.INPUT_DIR).resolve())
-    container_output = str(Path(settings.SEGMENTATION_OUTPUT_DIR).parent.resolve())
-    
-    # 尝试自动映射
-    host_input = mounts.get(container_input, None)
-    host_output = mounts.get(container_output, None)
+    host_input = os.getenv('HOST_INPUT_PATH')
+    host_output = os.getenv('HOST_OUTPUT_PATH')
     
     return host_input, host_output
 
@@ -48,9 +30,6 @@ app.state.path_mapper = PathMapper(
     host_input_dir=host_input,
     host_output_dir=host_output
 )
-
-def get_path_mapper():
-    return app.state.path_mapper
 
 # 注册路由
 app.include_router(api_router)
@@ -76,4 +55,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=settings.PORT, reload=settings.DEBUG)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=settings.DEBUG)

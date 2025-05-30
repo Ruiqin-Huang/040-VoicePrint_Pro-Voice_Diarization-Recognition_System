@@ -1,10 +1,12 @@
+import json
 import os
+import shutil
 import uuid
 import numpy as np
 from tqdm import tqdm
 import librosa
 import soundfile as sf
-from typing import List, Tuple, Dict
+from typing import Any, List, Tuple, Dict
 from modelscope.pipelines import pipeline
 from app.models.speech_segmentation import FileRequest
 
@@ -38,6 +40,64 @@ async def extract_speaker_audio(wav_path: str, results: List, target_speaker: in
     # 保存输出音频
     sf.write(save_path, audio_out, sr)
     return save_path
+
+async def extract_and_save_speaker_segments(wav_path: str, results: List, save_dir: str) -> Dict[str, Any]:
+    """提取语音段（自动合并连续的相同说话人段）"""
+    audio, sr = librosa.load(wav_path, sr=None)
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # 复制原始音频到输出目录
+    original_filename = os.path.basename(wav_path)
+    original_copy_path = os.path.join(save_dir, original_filename)
+    shutil.copy2(wav_path, original_copy_path)  # 保留元数据
+
+    # 先按开始时间排序所有段
+    sorted_segments = sorted(results, key=lambda x: (x[0], x[1]))
+    
+    # 合并连续的同说话人段
+    merged_segments = []
+    for seg in sorted_segments:
+        if not merged_segments:
+            merged_segments.append(list(seg))
+        else:
+            last_seg = merged_segments[-1]
+            # 如果说话人相同且当前段起始 <= 上一段结束，则合并
+            if seg[2] == last_seg[2]:
+                last_seg[1] = max(last_seg[1], seg[1])  # 扩展结束时间
+            else:
+                merged_segments.append(list(seg))
+
+    metadata = {"audio_source": original_filename, "segments": []}
+
+    for seg_idx, (start_time, end_time, speaker_id) in enumerate(merged_segments):
+        segment_id = str(uuid.uuid4())
+        filename = f"{segment_id}.wav"
+        filepath = os.path.join(save_dir, filename)
+        
+        # 提取并保存音频
+        start_sample = int(start_time * sr)
+        end_sample = int(end_time * sr)
+        sf.write(filepath, audio[start_sample:end_sample], sr)
+
+        identity = ["主叫", "被叫"]
+
+        # 记录元数据
+        metadata["segments"].append({
+            "id": segment_id,
+            "speaker": f"speaker{speaker_id}",
+            "identity": identity[speaker_id] if speaker_id < 2 else "其他",
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration": end_time - start_time,
+            "file_path": filepath
+        })
+
+    base_name, ext = os.path.splitext(original_filename)
+    # 保存元数据
+    with open(os.path.join(save_dir, f"{base_name}.json"), 'w') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+    return metadata
 
 async def is_url(path: str) -> bool:
     """检查路径是否为URL"""
@@ -97,9 +157,6 @@ async def process_audio_files(file_requests: List[FileRequest], path_mapper: Pat
         try:
             # 转换为容器内路径
             local_path = path_mapper.host_to_container(file_path)
-        
-            if not path_mapper.validate_host_path(file_path):
-                raise ValueError(f"非法路径访问: {file_path}")
             
             # 检查是否为URL，如果是则下载到本地
             if await is_url(file_path):
@@ -126,26 +183,24 @@ async def process_audio_files(file_requests: List[FileRequest], path_mapper: Pat
                 speaker_ids.add(segment[2])
             actual_speakers = len(speaker_ids)
             
-            file_name = os.path.basename(file_path if not await is_url(file_path) else local_path)
+            file_name = os.path.basename(local_path)
             base_name, ext = os.path.splitext(file_name)
             
             file_type = get_file_type(actual_speakers)
             segment_files = []
-            
-            # 处理每个说话人
-            for i in range(actual_speakers):
-                segment_id = str(uuid.uuid4())
-                output_filename = f"{base_name}_speaker{i}.wav"
-                output_path = os.path.join(output_dir, output_filename)
-                
-                # 提取说话人音频
-                await extract_speaker_audio(local_path, result['text'], i, output_path)
-                
-                # 添加到片段列表
-                segment_files.append({
-                    "id": segment_id,
-                    "file_url": path_mapper.container_to_host(output_path)
-                })
+
+            # 提取说话人音频
+            metadata = await extract_and_save_speaker_segments(local_path, result['text'], os.path.join(output_dir, base_name))
+
+            segment_files = [
+                {
+                    "id": seg["id"],
+                    "file_url": path_mapper.container_to_host(
+                        seg["file_path"]
+                    )
+                }
+                for seg in metadata["segments"]
+            ]
             
             # 添加到结果列表
             results.append({

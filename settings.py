@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # 模型路径配置
+    MODEL_DIR: str = "./pretrained_models"
     WHISPER_CACHE_DIR: str = "./pretrained_models/whisper"
     WHISPER_MODEL_SIZE: str = "medium"
     DIARIZATION_MODEL_PATH: str = "./pretrained_models/iic/speech_campplus_speaker-diarization_common"
@@ -18,8 +19,9 @@ class Settings(BaseSettings):
     INPUT_DIR: str = "./data/input"
 
     # 输出目录配置
-    SEGMENTATION_OUTPUT_DIR: str = "./data/output/audio_segmentation"
-    RECOGNITION_OUTPUT_DIR: str = "./data/output/audio_recognition"
+    OUTPUT_DIR: str = "./data/output"
+    SEGMENTATION_OUTPUT_DIR: str = OUTPUT_DIR + "/speech_segmentation"
+    RECOGNITION_OUTPUT_DIR: str = OUTPUT_DIR + "/speech_recognition"
     
     # 默认语言设置
     DEFAULT_LANGUAGE: str = "zh"

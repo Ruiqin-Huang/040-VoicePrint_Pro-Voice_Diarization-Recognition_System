@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import traceback
 
 from app.config.path_mapper import PathMapper
-from app.main import get_path_mapper
+from app.dependencies import get_path_mapper
 from app.models.common import ResponseResult
 from app.models.speech_segmentation import SpeechSegmentationRequest, FileResult, SegmentFile
 from app.services.speech_segmentation import process_audio_files

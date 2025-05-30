@@ -97,9 +97,6 @@ async def process_speech_files(files: List[str], path_mapper: PathMapper, langua
         try:
             # 转换为容器内路径
             local_path = path_mapper.host_to_container(file_path)
-        
-            if not path_mapper.validate_host_path(file_path):
-                raise ValueError(f"非法路径访问: {file_path}")
             
             # 检查是否为URL，如果是则下载到本地
             if await is_url(file_path):

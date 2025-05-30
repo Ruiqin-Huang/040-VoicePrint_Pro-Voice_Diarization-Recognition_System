@@ -1,6 +1,6 @@
 import os
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import json
 from typing import Dict, Tuple, Optional, List
 
@@ -13,16 +13,24 @@ class PathMapper:
         :param host_output_dir: 宿主机输出目录绝对路径
         """
         # 规范化宿主机路径
-        self.host_input_dir = str(Path(host_input_dir).resolve())
-        self.host_output_dir = str(Path(host_output_dir).resolve())
+        self.host_input_dir = str(host_input_dir)
+        self.host_output_dir = str(host_output_dir)
         
         # 预定义的容器内路径（来自settings）
         self.container_input_dir = str(Path(settings.INPUT_DIR).resolve())
+        self.container_output_dir = str(Path(settings.OUTPUT_DIR).resolve())
         self.container_segmentation_dir = str(Path(settings.SEGMENTATION_OUTPUT_DIR).resolve())
         self.container_recognition_dir = str(Path(settings.RECOGNITION_OUTPUT_DIR).resolve())
         
         # 验证路径映射完整性
         self._validate_mappings()
+
+    def _to_pure_path(self, path_str):
+        # 如果包含盘符（如 D:\）或反斜杠，视为 Windows 路径
+        if ":" in path_str or "\\" in path_str:
+            return PureWindowsPath(path_str)
+        else:
+            return PurePosixPath(path_str)
 
     def _validate_mappings(self):
         """验证必要路径是否可访问"""
@@ -31,12 +39,12 @@ class PathMapper:
             self.host_output_dir
         ]
         
-        for dir_path in required_dirs:
-            if not os.path.exists(dir_path):
-                raise RuntimeError(f"宿主机目录不存在: {dir_path}")
+        # for dir_path in required_dirs:
+        #     if not os.path.exists(dir_path):
+        #         raise RuntimeError(f"宿主机目录不存在: {dir_path}")
             
-            if not os.access(dir_path, os.R_OK | os.W_OK):
-                raise RuntimeError(f"宿主机目录无读写权限: {dir_path}")
+        #     if not os.access(dir_path, os.R_OK | os.W_OK):
+        #         raise RuntimeError(f"宿主机目录无读写权限: {dir_path}")
 
         if settings.DEBUG:
             print(f"路径映射配置：")
@@ -47,15 +55,15 @@ class PathMapper:
 
     def host_to_container(self, host_path: str) -> str:
         """宿主机路径 → 容器路径"""
-        host_path = str(Path(host_path).resolve())
+        host_path = str(host_path)
         
         # 输入路径映射
         if host_path.startswith(self.host_input_dir):
-            return host_path.replace(
-                self.host_input_dir, 
-                self.container_input_dir, 
-                1
-            )
+            # 获取文件名
+            filename = self._to_pure_path(host_path).relative_to(self._to_pure_path(self.host_input_dir))
+            # 组合容器路径
+            container_path = Path(self.container_input_dir) / filename
+            return str(container_path)
         
         # 输出路径映射（自动识别子目录）
         elif host_path.startswith(self.host_output_dir):
@@ -86,28 +94,23 @@ class PathMapper:
         
         # 输入路径反向映射
         if container_path.startswith(self.container_input_dir):
-            return container_path.replace(
-                self.container_input_dir,
-                self.host_input_dir,
-                1
-            )
+            # 获取文件名
+            filename = self._to_pure_path(container_path).relative_to(self._to_pure_path(self.container_input_dir))
+            # 组合容器路径
+            host_path = self._to_pure_path(self.host_input_dir) + filename
+            return str(host_path)
         
         # 输出路径反向映射
-        elif container_path.startswith(self.container_segmentation_dir):
-            relative_path = os.path.relpath(container_path, self.container_segmentation_dir)
-            return os.path.join(
-                self.host_output_dir,
-                "audio_segmentation",
-                relative_path
-            )
-            
-        if container_path.startswith(self.container_recognition_dir):
-            relative_path = os.path.relpath(container_path, self.container_recognition_dir)
-            return os.path.join(
-                self.host_output_dir,
-                "audio_recognition",
-                relative_path
-            )
+        elif container_path.startswith(self.container_output_dir):
+            print(container_path, self.container_output_dir)
+            # 获取文件名
+            file = self._to_pure_path(container_path).relative_to(self._to_pure_path(self.container_output_dir))
+
+            print(file)
+            # 组合容器路径
+            host_path = self._to_pure_path(self.host_output_dir + '/' + str(file))
+            print(host_path)
+            return str(host_path)
         
         raise ValueError(f"容器路径未映射到宿主机: {container_path}")
 
