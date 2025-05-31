@@ -91,7 +91,7 @@ def merge_by_speaker_segments(whisper_results: List[Dict], speaker_segments: Dic
             "duration": speaker_seg["duration"],
             "file_path": speaker_seg["file_path"],
             "text": "",
-            "no_speech_prob": None
+            "no_speech_prob": 0
         }
      
         # 只检查当前指针之后的Whisper片段（利用时间有序性）
@@ -108,7 +108,10 @@ def merge_by_speaker_segments(whisper_results: List[Dict], speaker_segments: Dic
                 break
                 
             # 记录匹配的片段
-            current_speaker["text"] += " " + whisper_seg["text"].strip()
+            if current_speaker["text"]:
+                current_speaker["text"] += " " + whisper_seg["text"].strip()
+            else:
+                current_speaker["text"] = whisper_seg["text"].strip()
             current_speaker["no_speech_prob"] = whisper_seg["no_speech_prob"]  # 更新为最新值
             whisper_idx += 1
         

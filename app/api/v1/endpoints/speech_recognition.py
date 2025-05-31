@@ -47,12 +47,9 @@ async def speech_recognition(request: SpeechRecognitionRequest, path_mapper: Pat
                     data=None
                 )
         
-        
-        
         # 将服务层返回的结果转换为响应格式
         response_data = []
         for result in processed_files:
-            print("debug: ", result["recognitions"])
             recognized_files = [
                 RecognizedFile(
                     identity=recognition["identity"],
@@ -66,7 +63,6 @@ async def speech_recognition(request: SpeechRecognitionRequest, path_mapper: Pat
                 )
                 for recognition in result["recognitions"]
             ]
-            print("debug: ", recognized_files)
 
             response_data.append(
                 SpeechRecognitionResponseData(

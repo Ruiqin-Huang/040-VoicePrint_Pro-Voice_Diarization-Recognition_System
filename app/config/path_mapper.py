@@ -102,14 +102,11 @@ class PathMapper:
         
         # 输出路径反向映射
         elif container_path.startswith(self.container_output_dir):
-            print(container_path, self.container_output_dir)
             # 获取文件名
             file = self._to_pure_path(container_path).relative_to(self._to_pure_path(self.container_output_dir))
 
-            print(file)
             # 组合容器路径
             host_path = self._to_pure_path(self.host_output_dir + '/' + str(file))
-            print(host_path)
             return str(host_path)
         
         raise ValueError(f"容器路径未映射到宿主机: {container_path}")

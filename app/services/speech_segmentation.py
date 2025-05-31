@@ -50,13 +50,10 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, save_d
     original_filename = os.path.basename(wav_path)
     original_copy_path = os.path.join(save_dir, original_filename)
     shutil.copy2(wav_path, original_copy_path)  # 保留元数据
-
-    # 先按开始时间排序所有段
-    sorted_segments = sorted(results, key=lambda x: (x[0], x[1]))
     
     # 合并连续的同说话人段
     merged_segments = []
-    for seg in sorted_segments:
+    for seg in results:
         if not merged_segments:
             merged_segments.append(list(seg))
         else:
@@ -69,7 +66,17 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, save_d
 
     metadata = {"audio_source": original_filename, "segments": []}
 
+    # 按照真实出现顺序编号说话人（原始输出不一定编号连续）
+    speakers = {}
+    current_speaker_idx = 0
+
     for seg_idx, (start_time, end_time, speaker_id) in enumerate(merged_segments):
+        if speaker_id not in speakers:
+            speakers[speaker_id] = current_speaker_idx
+            current_speaker_idx += 1
+        
+        real_speaker_id = speakers[speaker_id]
+
         segment_id = str(uuid.uuid4())
         filename = f"{segment_id}.wav"
         filepath = os.path.join(save_dir, filename)
@@ -84,8 +91,8 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, save_d
         # 记录元数据
         metadata["segments"].append({
             "id": segment_id,
-            "speaker": f"speaker{speaker_id}",
-            "identity": identity[speaker_id] if speaker_id < 2 else "其他",
+            "speaker": f"speaker{real_speaker_id}",
+            "identity": identity[real_speaker_id] if real_speaker_id < 2 else "其他",
             "start_time": start_time,
             "end_time": end_time,
             "duration": end_time - start_time,
