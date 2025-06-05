@@ -132,7 +132,7 @@ async def download_file(url: str) -> str:
     except Exception as e:
         raise Exception(f"下载文件失败: {str(e)}")
 
-async def process_audio_files(file_requests: List[FileRequest], path_mapper: PathMapper) -> List[Dict]:
+async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
     """处理语音分离"""
     # 创建输出目录
     output_dir = settings.SEGMENTATION_OUTPUT_DIR

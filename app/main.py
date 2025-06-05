@@ -21,29 +21,29 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# 自动初始化PathMapper
-host_input, host_output = auto_detect_mappings()
-if not host_input or not host_output:
-    raise RuntimeError("无法自动检测路径映射，请确保已正确挂载卷")
+# # 自动初始化PathMapper
+# host_input, host_output = auto_detect_mappings()
+# if not host_input or not host_output:
+#     raise RuntimeError("无法自动检测路径映射，请确保已正确挂载卷")
 
-app.state.path_mapper = PathMapper(
-    host_input_dir=host_input,
-    host_output_dir=host_output
-)
+# app.state.path_mapper = PathMapper(
+#     host_input_dir=host_input,
+#     host_output_dir=host_output
+# )
 
 # 注册路由
 app.include_router(api_router)
 
 @app.get("/health")
 async def health_check():
-    mapper = app.state.path_mapper
+    # mapper = app.state.path_mapper
     return {
         "status": "ok",
         "config": {
             "auto_detected": {
-                "host_input": mapper.host_input_dir,
-                "host_output": mapper.host_output_dir,
-                "container_input": mapper.container_input_dir,
+                # "host_input": mapper.host_input_dir,
+                # "host_output": mapper.host_output_dir,
+                "container_input": settings.INPUT_DIR,
                 "container_output_root": str(Path(settings.SEGMENTATION_OUTPUT_DIR).parent.resolve())
             },
             "models": {

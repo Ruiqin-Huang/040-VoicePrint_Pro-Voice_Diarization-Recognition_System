@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 import traceback
 
-from app.config.path_mapper import PathMapper
-from app.dependencies import get_path_mapper
+# from app.config.path_mapper import PathMapper
+# from app.dependencies import get_path_mapper
 from app.models.common import ResponseResult
 from app.models.speech_segmentation import SpeechSegmentationRequest, FileResult, SegmentFile
 from app.services.speech_segmentation import process_audio_files
@@ -11,7 +11,7 @@ from app.core.error_codes import ResponseCode
 router = APIRouter(prefix="/api")
 
 @router.post("/speech_segmentation", response_model=ResponseResult)
-async def speech_segmentation(request: SpeechSegmentationRequest, path_mapper: PathMapper = Depends(get_path_mapper)):
+async def speech_segmentation(request: SpeechSegmentationRequest):
     """语音分割API - 将多人语音分离为单个说话人"""
     try:
         if not request.files:
@@ -21,7 +21,7 @@ async def speech_segmentation(request: SpeechSegmentationRequest, path_mapper: P
                 data=[]
             )
             
-        file_results, invalid_files = await process_audio_files(request.files, path_mapper)
+        file_results, invalid_files = await process_audio_files(request.files)
         
         # 将服务层返回的结果转换为响应格式
         response_data = []

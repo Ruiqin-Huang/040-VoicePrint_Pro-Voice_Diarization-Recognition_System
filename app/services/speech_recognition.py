@@ -141,7 +141,7 @@ def save_segments_to_file(results: List[Dict], seg_metadata: str, file_name: str
     
     return str(json_path), recognitions["recognition"]
 
-async def process_speech_files(file_requests: List[FileRequest], path_mapper: PathMapper) -> tuple:
+async def process_speech_files(file_requests: List[FileRequest]) -> tuple:
     """处理语音识别文件"""
     processed_files = []
     invalid_files = []
