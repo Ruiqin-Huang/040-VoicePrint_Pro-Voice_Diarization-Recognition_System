@@ -174,7 +174,7 @@ async def process_speech_files(file_requests: List[FileRequest]) -> tuple:
             result = transcribe_audio_file(whisper_model, local_path)
             
             local_data_path, recognitions = save_segments_to_file(result["segments"], seg_metadata, base_name)
-            file_url = path_mapper.container_to_host(local_data_path)
+            # file_url = path_mapper.container_to_host(local_data_path)
             
             processed_files.append({
                 "file_id": file_id,
