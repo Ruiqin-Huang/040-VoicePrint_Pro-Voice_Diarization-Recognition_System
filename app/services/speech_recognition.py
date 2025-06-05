@@ -121,7 +121,7 @@ def merge_by_speaker_segments(whisper_results: List[Dict], speaker_segments: Dic
 
 def save_segments_to_file(results: List[Dict], seg_metadata: str, file_name: str):
     """将转录segments保存为JSON文件到固定目录"""
-    output_dir = settings.RECOGNITION_OUTPUT_DIR
+    output_dir = os.path.join(settings.OUTPUT_DIR, settings.RECOGNITION_OUTPUT_DIR)
     os.makedirs(output_dir, exist_ok=True)
 
     with open(seg_metadata) as f:
@@ -153,7 +153,8 @@ async def process_speech_files(file_requests: List[FileRequest], path_mapper: Pa
         file_path = file_request.file_path
         try:
             # 转换为容器内路径
-            local_path = path_mapper.host_to_container(file_path)
+            # local_path = path_mapper.host_to_container(file_path)
+            local_path = os.path.join(settings.INPUT_DIR, file_path)
             
             # 检查是否为URL，如果是则下载到本地
             if await is_url(file_path):
@@ -166,7 +167,7 @@ async def process_speech_files(file_requests: List[FileRequest], path_mapper: Pa
                 continue
             
             base_name, ext = os.path.splitext(os.path.basename(local_path))
-            seg_metadata = os.path.join(settings.SEGMENTATION_OUTPUT_DIR, base_name, (base_name + '.json'))
+            seg_metadata = os.path.join(settings.OUTPUT_DIR, settings.SEGMENTATION_OUTPUT_DIR, base_name, (base_name + '.json'))
             if not os.path.exists(seg_metadata):
                 invalid_files.append(f"语音切分结果不存在：{file_path}")
             

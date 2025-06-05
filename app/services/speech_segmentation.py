@@ -41,9 +41,10 @@ async def extract_speaker_audio(wav_path: str, results: List, target_speaker: in
     sf.write(save_path, audio_out, sr)
     return save_path
 
-async def extract_and_save_speaker_segments(wav_path: str, results: List, save_dir: str) -> Dict[str, Any]:
+async def extract_and_save_speaker_segments(wav_path: str, results: List, file_dir: str) -> Dict[str, Any]:
     """提取语音段（自动合并连续的相同说话人段）"""
     audio, sr = librosa.load(wav_path, sr=None)
+    save_dir = os.path.join(settings.OUTPUT_DIR, file_dir)
     os.makedirs(save_dir, exist_ok=True)
     
     # 复制原始音频到输出目录
@@ -80,6 +81,7 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, save_d
         segment_id = str(uuid.uuid4())
         filename = f"{segment_id}.wav"
         filepath = os.path.join(save_dir, filename)
+        output_filepath = os.path.join(file_dir, filename)
         
         # 提取并保存音频
         start_sample = int(start_time * sr)
@@ -96,7 +98,7 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, save_d
             "start_time": start_time,
             "end_time": end_time,
             "duration": end_time - start_time,
-            "file_path": filepath
+            "file_path": output_filepath
         })
 
     base_name, ext = os.path.splitext(original_filename)
@@ -134,7 +136,7 @@ async def process_audio_files(file_requests: List[FileRequest], path_mapper: Pat
     """处理语音分离"""
     # 创建输出目录
     output_dir = settings.SEGMENTATION_OUTPUT_DIR
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(settings.OUTPUT_DIR, output_dir), exist_ok=True)
     
     # 检测是否存在GPU
     import torch
@@ -163,7 +165,8 @@ async def process_audio_files(file_requests: List[FileRequest], path_mapper: Pat
         
         try:
             # 转换为容器内路径
-            local_path = path_mapper.host_to_container(file_path)
+            # local_path = path_mapper.host_to_container(file_path)
+            local_path = os.path.join(settings.INPUT_DIR, file_path)
             
             # 检查是否为URL，如果是则下载到本地
             if await is_url(file_path):
@@ -202,9 +205,8 @@ async def process_audio_files(file_requests: List[FileRequest], path_mapper: Pat
             segment_files = [
                 {
                     "id": seg["id"],
-                    "file_url": path_mapper.container_to_host(
-                        seg["file_path"]
-                    )
+                    # "file_url": path_mapper.container_to_host(seg["file_path"])
+                    "file_url": seg["file_path"]
                 }
                 for seg in metadata["segments"]
             ]

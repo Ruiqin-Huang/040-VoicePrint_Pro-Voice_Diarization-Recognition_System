@@ -57,7 +57,7 @@ async def speech_recognition(request: SpeechRecognitionRequest, path_mapper: Pat
                     call_records_details=RecognizedDetails(
                         start=recognition["start_time"],
                         end=recognition["end_time"],
-                        text=translate_text(recognition["text"], "zh"),
+                        text="",
                         no_speech_prob=recognition["no_speech_prob"]
                     )
                 )
@@ -68,7 +68,7 @@ async def speech_recognition(request: SpeechRecognitionRequest, path_mapper: Pat
                 SpeechRecognitionResponseData(
                     file_id=result["file_id"],
                     call_original=result["call_original"],
-                    call_translation=translate_text(result["call_original"], "zh"),
+                    call_translation="",
                     call_records_collections=recognized_files
                 )
             )

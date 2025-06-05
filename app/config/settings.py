@@ -20,8 +20,8 @@ class Settings(BaseSettings):
 
     # 输出目录配置
     OUTPUT_DIR: str = "./data/output"
-    SEGMENTATION_OUTPUT_DIR: str = OUTPUT_DIR + "/speech_segmentation"
-    RECOGNITION_OUTPUT_DIR: str = OUTPUT_DIR + "/speech_recognition"
+    SEGMENTATION_OUTPUT_DIR: str = "speech_segmentation"
+    RECOGNITION_OUTPUT_DIR: str = "speech_recognition"
     
     # 默认语言设置
     DEFAULT_LANGUAGE: str = "zh"
