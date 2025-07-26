@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # 应用基本配置
     APP_NAME: str = "语音处理服务"
     DEBUG: bool = True
-    PORT: int = 8000
+    PORT: int = 8765
     
     # 模型路径配置
     MODEL_DIR: str = "./pretrained_models"

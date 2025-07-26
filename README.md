@@ -59,7 +59,7 @@
     cd /path/to/your/VoicePrint_Pro
 
     # 安装librosa相关依赖
-    conda install -c conda-forge sox
+    conda install sox -c conda-forge 
     # 安装其他相关依赖
     pip install -r requirements.txt
 

@@ -1,0 +1,5 @@
+常见于军事通话场景的实体类型：
+
+Phone number，Email address，Person name，Location，Organization，Military rank，Call sign，Time，Date，Weapon type，Vehicle type，Mission code，Unit name，Coordinate，Frequency
+
+电话号码，邮箱地址，人名，地名，组织，军衔，呼号，时间，日期，武器类型，车辆类型，任务代号，部队名称，坐标，频率，
