@@ -2,5 +2,5 @@
 /example/
 /workspace/
 /data/
-/pretrained_models/whisper/
-/pretrained_models/iic/nlp_seqgpt-560m/
+/pretrained_models/
+__pycache__/

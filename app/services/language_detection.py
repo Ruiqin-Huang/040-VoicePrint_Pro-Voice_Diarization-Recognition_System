@@ -8,15 +8,15 @@ from urllib.parse import urlparse
 from typing import Any, List, Dict
 import fasttext
 
-from app.models.speech_segmentation import FileRequest
+from app.models.language_detection import FileRequest
 from app.config.path_mapper import PathMapper
 from app.config.settings import settings
 from utils.helpers import format_datetime, generate_phone_number
 
 # 全局加载FastText语种检测模型（建议在应用启动时加载）
-LANG_DETECTOR = fasttext.load_model('./pretrained_models/fasttext/lid.176.bin')
+LANG_DETECTOR = fasttext.load_model(settings.FASTTEXT_CACHE_DIR)
 LANG_DICT = {
-    'ch': "中文",
+    'zh': "中文",
     'en': "英文",
     'ru': "俄文",
     'ja': "日文"

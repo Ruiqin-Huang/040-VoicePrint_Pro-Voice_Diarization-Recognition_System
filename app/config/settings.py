@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     WHISPER_MODEL_SIZE: str = "medium"
     DIARIZATION_MODEL_PATH: str = "./pretrained_models/iic/speech_campplus_speaker-diarization_common"
     DIARIZATION_MODEL_REVISION: str = "v1.0.0"
+    FASTTEXT_CACHE_DIR: str = "./pretrained_models/fasttext/lid.176.bin"
+    PADDLEOCR_CACHE_DIR: str = "./pretrained_models/paddleocr/"
+    OCR_DETECTION_CACHE_DIR: str = "PP-OCRv5_server_det"
+    OCR_RECOGNITION_CACHE_DIR: str = "PP-OCRv5_server_rec"
     
     # 输入目录配置
     INPUT_DIR: str = "./data/input"

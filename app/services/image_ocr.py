@@ -99,7 +99,7 @@ async def recognize_text(image_path: str, lang: str = 'ch'):
         # 结构化输出
         formatted_results = []
         for page in result:  # 支持多页文档
-            page.print()
+            # page.print()
 
             # if hasattr(page, '__dict__'):
             #     print("Yes, 对象属性:", vars(page))  # 显示所有实例变量
@@ -135,8 +135,8 @@ async def process_ocr_files(file_requests: List[Dict]):
 
     for file_request in tqdm(file_requests, desc="Processing OCR files"):
         try:
-            file_id = file_request['id']
-            file_path = file_request['file_path']
+            file_id = file_request.id
+            file_path = file_request.file_path
             
             # 处理URL或本地路径
             local_path = file_path
@@ -158,7 +158,7 @@ async def process_ocr_files(file_requests: List[Dict]):
                 "ocr_results": ocr_results,
                 "total_text": " ".join([r["text"] for r in ocr_results])
             })
-            print(processed_files)
+            # print(processed_files)
             
         except Exception as e:
             invalid_files.append(f"{file_path}: {str(e)}")
@@ -189,7 +189,7 @@ async def process_ocr_files(file_requests: List[Dict]):
 # # 使用示例
 # async def main():
 #     test_requests = [
-#         {"id": 1, "file_path": "./readme_assets/说话人分割系统.png"}
+#          FileRequest(id=1, file_path='./readme_assets/说话人分割系统.png')
 #     ]
     
 #     results, errors = await process_ocr_files(test_requests)
