@@ -338,6 +338,111 @@ python ${SCRIPT_DIR}/local/audio_diarization.py --input_dir "$audio_dir" --works
         }
   ```
 
+### 实体-事件论元抽取系统
+
+#### 系统概述
+
+基于预训练模型SeqGPT-560m实现的文本信息抽取系统，支持：
+1. 实体抽取：从文本中识别指定类型的命名实体
+2. 事件论元抽取：识别特定事件类型的关键元素及其属性
+
+#### 系统架构
+
+```bash
+├── local/
+│   ├── entity_extraction.py       # 实体抽取脚本
+│   └── event_argument_extraction.py # 事件论元抽取脚本
+├── pretrained_models/
+│   └── iic/
+│       └── nlp_seqgpt-560m/      # 预训练模型（需用户自行放置）
+└── README.md
+```
+
+
+#### 输入接口
+
+1. 实体抽取
+    python local/entity_extraction.py --text <文本> [--entity_types <实体类型列表>]
+
+    - --text：必需，待抽取的文本内容（支持中英文）
+
+    - --entity_types：可选，自定义的实体类型列表（支持中英文，空格分隔），默认使用40种军事领域实体类型
+
+2. 事件论元抽取
+    python local/event_argument_extraction.py --text <文本> --event_type <事件类型> [--argument_types <论元类型列表>]
+
+    - --text：必需，待抽取的文本内容（支持中英文）
+
+    - --event_type：必需，指定目标事件类型（支持中英文，如"财经"）
+
+    - --argument_types：可选，自定义论元类型列表（支持中英文，空格分隔），默认包含[主体,客体,时间,地点,时态]
+
+#### 输出接口
+
+1. 实体抽取
+    JSON格式结果字典：
+    ```bash
+    {
+      "实体类型1": "抽取结果",
+      "实体类型2": "抽取结果",
+      ...
+    }
+    ```
+
+    • 抽取结果为空时显示"None"
+
+2. 事件论元抽取
+    JSON格式结果字典：
+    ```bash
+    {
+      "xx事件/事件触发词": "抽取结果",
+      "事件xx/论元类型1": "抽取结果",
+      "事件xx/论元类型2": "抽取结果",
+      ...
+    }
+    ```
+    • 事件论元抽取中，首个键为事件触发词
+
+#### 使用样例
+
+1. 实体抽取
+    ```bash
+    python local/entity_extraction.py --text "Falcon One to Command Center, this is Lieutenant John Smith reporting from the Marine Corps, urgent request: we are under enemy ambush at Grid Point Three in Baghdad, time 13:30, date July 31, 2024, hostile forces with AK-47 fire damaging our Humvee convoy, Operation Thunderstorm ongoing, Command Center please authorize air strike support, over; Command Center to Falcon One, roger, confirming Grid Point Three Baghdad, time 13:35, Colonel Lee of the 10th Division dispatching AH-64 Apache support immediately, maintain comms link for successful Operation Thunderstorm completion."
+    # 未指定实体类型，默认使用40种军事领域实体类型
+    ```
+
+    输出：
+    ```bash
+    {
+      "电话号码": "None",
+      "邮箱地址": "None",
+      "人名": "Lee",
+      "地名": "Baghdad",
+      "组织": "10th Division",
+      "军衔": "Lieutenant",
+      "呼号": "roger",
+      "时间": "13:35",
+      "日期": "July 31, 2024",
+      ......
+    }
+    ```
+
+
+2. 事件论元抽取
+    ```bash
+    python local/event_argument_extraction.py --text "腾讯股价暴跌，市值蒸发千亿。" --event_type 财经 --argument_types 主体 客体 时间
+    ```
+
+    输出：
+    ```bash
+    {
+      "财经事件/事件触发词": "暴跌",
+      "事件财经/主体": "腾讯",
+      "事件财经/客体": "None",
+      "事件财经/时间": "None"
+    }
+    ```
+
 ## API接口开发
 
 ### 公用数据格式
