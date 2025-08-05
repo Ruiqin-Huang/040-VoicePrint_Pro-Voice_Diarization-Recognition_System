@@ -476,7 +476,7 @@ python -m local.language_detection -f 文本路径1,文本路径2...
 
 #### 使用样例
 ```bash
-python -m local.language_detection -f ../test.txt
+python -m local.language_detection -f ./local/language_detection_test.txt
 Processing text files: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 798.76it/s]
 
 语言检测结果:

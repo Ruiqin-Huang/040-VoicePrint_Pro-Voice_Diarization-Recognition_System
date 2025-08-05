@@ -19,7 +19,8 @@ LANG_DICT = {
     'zh': "中文",
     'en': "英文",
     'ru': "俄文",
-    'ja': "日文"
+    'ja': "日文",
+    'mn': "蒙文"
 }
 
 async def is_url(path: str) -> bool:
