@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     PADDLEOCR_CACHE_DIR: str = "./pretrained_models/paddleocr/"
     OCR_DETECTION_CACHE_DIR: str = "PP-OCRv5_server_det"
     OCR_RECOGNITION_CACHE_DIR: str = "PP-OCRv5_server_rec"
+    TRANSLATION_M2M100_CACHE_DIR: str = "./pretrained_models/m2m100"
+    TRANSLATION_SMALL100_CACHE_DIR: str = "./pretrained_models/small100"
     
     # 输入目录配置
     INPUT_DIR: str = "./data/input"
@@ -29,6 +31,14 @@ class Settings(BaseSettings):
     
     # 默认语言设置
     DEFAULT_LANGUAGE: str = "zh"
+    # 语言列表
+    LANG_DICT : dict = {
+        'zh': "中文",
+        'en': "英文",
+        'ru': "俄文",
+        'ja': "日文",
+        'mn': "蒙文"
+    }
     
     # GPU设置
     USE_GPU: bool = True

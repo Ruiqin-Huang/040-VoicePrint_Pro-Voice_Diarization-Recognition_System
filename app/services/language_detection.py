@@ -11,7 +11,6 @@ import fasttext
 from app.models.language_detection import FileRequest
 from app.config.path_mapper import PathMapper
 from app.config.settings import settings
-from utils.helpers import format_datetime, generate_phone_number
 
 # 全局加载FastText语种检测模型（建议在应用启动时加载）
 LANG_DETECTOR = fasttext.load_model(settings.FASTTEXT_CACHE_DIR)
@@ -110,7 +109,7 @@ async def process_text_files(file_requests: List[FileRequest]):
                 "file_id": file_id,
                 "file_path": file_path,
                 "language": lang,
-                "language_name": LANG_DICT.get(lang, "其他语言"),
+                "language_name": settings.LANG_DICT.get(lang, "其他语言"),
                 "confidence": float(confidence)  # 确保JSON可序列化
                 # "sample_text": text[:200]  # 返回前200字符用于验证
             })
