@@ -2,19 +2,21 @@ from fastapi import APIRouter
 import traceback
 
 from app.models.common import ResponseResult
-from app.models.entity_extraction import EntityExtractionRequest
-from app.services.entity_extraction import process_entity_extraction
+from app.models.event_argument_extraction import EventArgumentExtractionRequest
+from app.services.event_argument_extraction import process_event_argument_extraction
 from app.core.error_codes import ResponseCode
 
 router = APIRouter(prefix="/api")
 
-@router.post("/entity_extraction", response_model=ResponseResult)
-async def entity_extraction(request: EntityExtractionRequest):
+@router.post("/event_argument_extraction", response_model=ResponseResult)
+async def event_argument_extraction(request: EventArgumentExtractionRequest):
     """
-    实体抽取API - 从给定文本中抽取指定类型的实体
+    事件论元抽取API - 从给定文本中抽取指定事件的论元
     """
     try:
-        result_dict = await process_entity_extraction(request.text, request.entity_types)
+        result_dict = await process_event_argument_extraction(
+            request.text, request.event_type, request.argument_types
+        )
         
         return ResponseResult(
             retcode=ResponseCode.SUCCESS,

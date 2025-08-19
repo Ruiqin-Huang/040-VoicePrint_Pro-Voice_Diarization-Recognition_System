@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     WHISPER_MODEL_SIZE: str = "medium"
     DIARIZATION_MODEL_PATH: str = "./pretrained_models/iic/speech_campplus_speaker-diarization_common"
     DIARIZATION_MODEL_REVISION: str = "v1.0.0"
+    ENTITY_EXTRACTION_MODEL_PATH: str = "./pretrained_models/iic/nlp_seqgpt-560m"
     FASTTEXT_CACHE_DIR: str = "./pretrained_models/fasttext/lid.176.bin"
     PADDLEOCR_CACHE_DIR: str = "./pretrained_models/paddleocr/"
     OCR_DETECTION_CACHE_DIR: str = "PP-OCRv5_server_det"

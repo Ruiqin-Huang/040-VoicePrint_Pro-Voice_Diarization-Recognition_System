@@ -652,7 +652,8 @@ docker rm voiceprint-api
 │   │   │   ├── endpoints/
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── speech_recognition.py
-│   │   │   │   └── speech_segmentation.py
+│   │   │   │   ├── speech_segmentation.py
+│   │   │   │   └── ...
 │   │   │   └── router.py            # 路由聚合
 │   ├── core/                        # 核心组件
 │   │   ├── __init__.py
@@ -661,11 +662,13 @@ docker rm voiceprint-api
 │   │   ├── __init__.py
 │   │   ├── common.py                # 通用模型
 │   │   ├── speech_recognition.py
-│   │   └── speech_segmentation.py
+│   │   ├── speech_segmentation.py
+│   │   └── ...
 │   └── services/                    # 业务逻辑
 │       ├── __init__.py
 │       ├── speech_recognition.py
-│       └── speech_segmentation.py
+│       ├── speech_segmentation.py
+│       └── ...
 └── utils/                           # 工具函数
     ├── __init__.py
     ├── io_suppressor.py
@@ -701,8 +704,8 @@ files对象包含以下字段：
 ```json
 {
   "files": [
-    {"id": "1234", "file_path": "/data/file_input_path"},
-    {"id": "2345", "file_path": "/data/file_input_path"}
+    {"id": "1234", "file_path": "/data/file_input_path/audio1.wav"},
+    {"id": "2345", "file_path": "/data/file_input_path/audio2.wav"}
   ]
 }
 ```
@@ -742,28 +745,17 @@ segment_files数组中的每个对象包含以下字段：
       "segment_files": [
         {
           "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-          "file_url": "./data/audio_segmentation/audio1_speaker0.wav"
+          "file_url": "./data/output/speech_segmentation/audio1/audio1_speaker0.wav"
         },
         {
           "id": "b2c3d4e5-f6a7-8901-bcde-234567890abc",
-          "file_url": "./data/audio_segmentation/audio1_speaker1.wav"
-        }
-      ]
-    },
-    {
-      "file_id": "2345",
-      "file_type": "单人",
-      "segment_files": [
-        {
-          "id": "c3d4e5f6-a7b8-9012-cdef-3456789abcd0",
-          "file_url": "./data/audio_segmentation/audio2_speaker0.wav"
+          "file_url": "./data/output/speech_segmentation/audio1/audio1_speaker1.wav"
         }
       ]
     }
   ]
 }
 ```
-
 
 ### 语音识别接口
 
@@ -862,43 +854,36 @@ files对象包含以下字段：
 
 ### 实体抽取接口
 
-实现文本实体抽取，根据上传的文本和实体类型列表，自动识别并抽取指定类型的实体。
+#### 接口概述
+
+实体抽取API用于从给定的文本中识别和提取预定义或自定义的实体类型。
 
 - **URL**: `/api/entity_extraction`
 - **方法**: POST
 - **请求格式**: application/json
-- **功能**: 接收待处理文本和实体类型列表，自动完成实体类型列表到字符串的转换（以中文全角逗号'，'分隔），并调用后端模型进行实体抽取，返回抽取结果。
+- **功能**: 接收文本和可选的实体类型列表，返回一个包含所有请求实体及其抽取结果的字典。
 
 #### 请求参数
 
 请求体使用JSON格式，包含以下字段：
 
-| 参数名      | 类型         | 必填 | 说明                                                         |
-| ----------- | ------------ | ---- | ------------------------------------------------------------ |
-| text        | String       | 是   | 待处理文本                                                   |
-| entity_types| Array[String]| 否   | 实体类型列表，支持自定义，若不传则使用默认实体类型列表        |
+| 参数名 | 类型 | 必填 | 描述 |
+| ------ | ---- | ---- | ---- |
+| text | String | 是 | 待抽取的文本内容（支持中英文）。 |
+| entity_types | Array[String] | 否 | 自定义的实体类型列表。如果未提供，将使用默认的40种军事领域实体类型。 |
 
-默认实体类型列表如下（如未指定则自动使用）：
-```json
-[
-  "电话号码","邮箱地址","人名","地名","组织","军衔","呼号","时间","日期","武器类型","车辆类型","任务代号","部队名称","坐标","频率",
-  "警报类型","通信指令","装备型号","加密等级","通播组","通信状态","身份验证码","通播等级","接力站点","呼号后缀","报文类型",
-  "通播网号","认证口令","通信协议","信道编号","频谱波段","导航点","战位标识","敌我识别码","密语代号","通播站标识","信号强度",
-  "干扰情况","时隙分配","网络节点"
-]
-```
-
-请求体示例：
+请求体示例（使用自定义实体类型）：
 ```json
 {
   "text": "张三出生于北京，任职于百度",
-  "entity_types": ["任务", "人物", "公司", "地点"]
+  "entity_types": ["人名", "地名", "组织"]
 }
 ```
-或仅传文本，自动使用默认实体类型列表：
+
+请求体示例（使用默认实体类型）：
 ```json
 {
-  "text": "1944年毕业于北大的名古屋铁道会长谷口清太郎等人在日本积极筹资，共筹款2.7亿日元，参加捐款的日本企业有69家。"
+  "text": "Falcon One to Command Center, this is Lieutenant John Smith reporting from the Marine Corps, urgent request: we are under enemy ambush at Grid Point Three in Baghdad, time 13:30, date July 31, 2024."
 }
 ```
 
@@ -906,44 +891,127 @@ files对象包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型   | 说明                 |
-| ------ | ------ | -------------------- |
-| result | String | 模型输出结果（抽取结果） |
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含处理结果。键为实体类型，值为抽取的文本。如果某个实体未找到，其值将为 "None"。 |
 
 成功响应示例：
 ```json
 {
-  "result": "任务: None\n人物: None\n公司: 百度\n地点: 北京"
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "人名": "张三",
+        "地名": "北京",
+        "组织": "百度"
+    }
 }
 ```
 
-或使用默认实体类型列表时的响应示例：
+### 实体抽取接口
+
+#### 接口概述
+
+实体抽取API用于从给定的文本中识别和提取预定义或自定义的实体类型。
+
+- **URL**: `/api/entity_extraction`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收文本和可选的实体类型列表，返回一个包含所有请求实体及其抽取结果的字典。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+
+| 参数名 | 类型 | 必填 | 描述 |
+| ------ | ---- | ---- | ---- |
+| text | String | 是 | 待抽取的文本内容（支持中英文）。 |
+| entity_types | Array[String] | 否 | 自定义的实体类型列表。如果未提供，将使用默认的40种军事领域实体类型。 |
+
+请求体示例（使用自定义实体类型）：
 ```json
 {
-  "result": "人名: 谷口清太郎\n地理位置: 日本  名古屋\n组织机构: 北大"
+  "text": "张三出生于北京，任职于百度",
+  "entity_types": ["人名", "地名", "组织"]
 }
 ```
 
-#### 接口说明
+#### 响应格式
 
-- 支持自定义实体类型列表，后端自动将列表转换为以中文全角逗号'，'分隔的字符串作为模型输入。
-- 若未指定实体类型列表，则自动使用默认实体类型列表。
-- 输出结果为模型抽取的实体及其对应内容，格式为`实体类型: 实体内容`，每行一个实体类型。
+API响应使用JSON格式，包含以下字段：
 
-#### 示例
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含处理结果。键为实体类型，值为抽取的文本。如果某个实体未找到，其值将为 "None"。 |
 
-请求：
+成功响应示例：
 ```json
 {
-  "text": "7月28日，天津泰达在德比战中以0-1负于天津天海。",
-  "entity_types": ["时间", "胜者", "败者", "赛事名称"]
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "人名": "张三",
+        "地名": "北京",
+        "组织": "百度"
+    }
 }
 ```
 
-响应：
+### 事件论元抽取接口
+
+#### 接口概述
+
+事件论元抽取API用于从给定的文本中，针对指定事件类型，抽取其对应的论元信息。
+
+- **URL**: `/api/event_argument_extraction`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收文本、事件类型和可选的论元类型列表，返回一个包含事件触发词和所有请求论元及其抽取结果的字典。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+
+| 参数名 | 类型 | 必填 | 描述 |
+| ------ | ---- | ---- | ---- |
+| text | String | 是 | 待抽取的文本内容（支持中英文）。 |
+| event_type | String | 是 | 指定的目标事件类型（例如 "财经"）。 |
+| argument_types | Array[String] | 否 | 自定义的论元类型列表。如果未提供，将使用默认论元：['主体', '客体', '时间', '地点', '时态']。 |
+
+请求体示例：
 ```json
 {
-  "result": "时间: None\n胜者: 天津天海  天津泰达\n败者: None\n赛事名称: 德比战"
+  "text": "腾讯股价暴跌，市值蒸发千亿。",
+  "event_type": "财经",
+  "argument_types": ["主体", "客体", "时间"]
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含处理结果。首个键为事件触发词，其余键为论元类型，值为抽取的文本。如果某个论元未找到，其值将为 "None"。 |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "财经事件/事件触发词": "暴跌",
+        "事件财经/主体": "腾讯",
+        "事件财经/客体": "None",
+        "事件财经/时间": "None"
+    }
 }
 ```
 
