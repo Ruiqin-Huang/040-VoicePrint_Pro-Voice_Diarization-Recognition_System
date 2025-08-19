@@ -851,6 +851,109 @@ API响应使用JSON格式，包含以下字段：
 }
 ```
 
+### 说话人声纹识别及声纹注册接口
+
+#### 接口概述
+
+该API对输入的音频文件进行预处理（分割、VAD、声纹提取），然后与现有声纹库进行比对，以识别说话人身份。API还支持根据识别结果动态更新声纹库，包括注册新说话人和更新已有说话人的声纹。
+
+- **URL**: `/api/audio_identification_registration`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收音频文件列表，识别每个音频片段的说话人，并可选择性地更新全局声纹库。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+
+| 参数名 | 类型 | 必填 | 描述 |
+| --- | --- | --- | --- |
+| audio_files | Array[String] | 是 | 待处理的音频文件绝对路径列表。 |
+| num_speakers_per_audio | Integer | 否 | 每个输入音频文件中预期的说话人数量。默认值为 `2`。 |
+| update_voiceprintlib | Boolean | 否 | 是否更新声纹库。`true` 表示将新识别的片段注册或更新到库中；`false` 表示仅返回识别结果，不修改声纹库。默认值为 `false`。 |
+| threshold | Float | 否 | 声纹识别的余弦距离阈值。当一个音频片段与库中某个声纹的距离小于等于此阈值时，被认为是同一个人。默认值为 `0.65`。 |
+
+请求体示例：
+```json
+{
+  "audio_files": [
+    "/path/to/your/audio/new_audio_1.wav",
+    "/path/to/your/audio/new_audio_2.wav"
+  ],
+  "num_speakers_per_audio": 1,
+  "update_voiceprintlib": true,
+  "threshold": 0.65
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| retcode | Integer | 响应码，`200000`表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含识别和注册的详细结果，失败时为 `null` |
+
+`data` 对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| identification_results | Array[Object] | 每个输入音频片段的详细识别结果列表。 |
+| newly_registered_speakers | Object | (仅当`update_voiceprintlib`为true时) 本次任务新注册的说话人及其音频片段。键为新说话人ID，值为其音频片段列表。 |
+| updated_speakers | Array[String] | (仅当`update_voiceprintlib`为true时) 本次任务中声纹被更新的已有说话人ID列表。 |
+| library_updated | Boolean | 指示本次请求是否对声纹库进行了修改。 |
+
+`identification_results` 数组中的每个对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| source_segment | String | 用于识别的音频片段的相对路径。 |
+| identified_speaker | String | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown'。 |
+| is_new_speaker | Boolean | 是否被判定为新说话人（即与所有库中声纹的距离都大于阈值）。 |
+| min_distance | Float | 该片段与库中最相似说话人的余弦距离。如果库为空，则为 `null`。 |
+| distances | Object | 该片段与库中所有说话人的距离映射。 |
+
+成功响应示例（更新了声纹库）：
+```json
+{
+  "retcode": 200000,
+  "msg": "success",
+  "data": {
+    "identification_results": [
+      {
+        "source_segment": "dataset/audio/new_audio_1_speaker0.wav",
+        "identified_speaker": "speaker_0",
+        "is_new_speaker": false,
+        "min_distance": 0.2345,
+        "distances": {
+          "speaker_0": 0.2345,
+          "speaker_1": 0.8765
+        }
+      },
+      {
+        "source_segment": "dataset/audio/new_audio_2_speaker0.wav",
+        "identified_speaker": "unknown",
+        "is_new_speaker": true,
+        "min_distance": 0.7890,
+        "distances": {
+          "speaker_0": 0.9123,
+          "speaker_1": 0.7890
+        }
+      }
+    ],
+    "newly_registered_speakers": {
+      "speaker_2": [
+        "dataset/audio/new_audio_2_speaker0.wav"
+      ]
+    },
+    "updated_speakers": [
+      "speaker_0"
+    ],
+    "library_updated": true
+  }
+}
+```
+
 ### 语音识别接口
 
 实现语音转文字，根据上传的语音素材文件进行语音识别。

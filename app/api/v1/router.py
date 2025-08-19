@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import speech_recognition, speech_segmentation, entity_extraction, event_argument_extraction, audio_diarization_cluster, language_detection, image_ocr, translation
+from app.api.v1.endpoints import speech_recognition, speech_segmentation, entity_extraction, event_argument_extraction, audio_diarization_cluster, language_detection, image_ocr, translation, audio_identification_registration
 
 api_router = APIRouter()
 
@@ -13,3 +13,4 @@ api_router.include_router(audio_diarization_cluster.router, tags=["说话人分�
 api_router.include_router(language_detection.router, tags=["语种检测"])
 api_router.include_router(image_ocr.router, tags=["语种检测"])
 api_router.include_router(translation.router, tags=["语种检测"])
+api_router.include_router(audio_identification_registration.router, tags=["说话人识别与注册"])
