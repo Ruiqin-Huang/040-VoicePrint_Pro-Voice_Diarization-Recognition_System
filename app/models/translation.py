@@ -13,7 +13,7 @@ class TranslationRequest(BaseModel):
     text: List[str]
     source_lang: str
     target_lang: str
-    model_name: Optional[str] = None
+    model_type: Optional[str] = "m2m100"
 
     @validator('text')
     def text_must_not_be_empty(cls, v):

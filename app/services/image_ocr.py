@@ -68,7 +68,6 @@ async def recognize_text(image_path: str):
     """
     执行OCR识别
     :param image_path: 图片路径
-    :param lang: 语言类型 ('ch', 'en', 'japan', 'ru'等)
     :return: 结构化识别结果
     """
     try:
