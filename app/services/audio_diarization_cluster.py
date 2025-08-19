@@ -32,23 +32,75 @@ class DiarizationClusterService:
         os.makedirs(self.workspace, exist_ok=True)
         print(f"[INFO] Workspace: {self.workspace}, Device: {self.device}")
 
-    def _extract_speaker_audio(self, wav_path, results, target_speaker, save_path):
+    def _extract_speaker_audio(self, wav_path, results, num_speakers, audio_output_path):
         audio, sr = librosa.load(wav_path, sr=None)
-        audio_out = np.zeros_like(audio)
+        audio_out = [np.zeros_like(audio) for _ in range(num_speakers)]
+
+        merged_segments = []
+        # 按照真实出现顺序编号说话人（原始输出不一定编号连续）
+        speakers = {}
+
         for seg in results:
             start_time, end_time, speaker_id = seg
-            if speaker_id == target_speaker:
-                start_sample = int(start_time * sr)
-                end_sample = int(end_time * sr)
-                audio_out[start_sample:end_sample] = audio[start_sample:end_sample]
-        sf.write(save_path, audio_out, sr)
+
+            if speaker_id not in speakers:
+                speakers[speaker_id] = len(speakers)
+            real_speaker_id = speakers[speaker_id]
+
+            start_sample = int(start_time * sr)
+            end_sample = int(end_time * sr)
+            audio_out[real_speaker_id][start_sample:end_sample] = audio[start_sample:end_sample]
+
+            # 合并连续的同说话人段
+            if not merged_segments:
+                merged_segments.append([start_time, end_time, real_speaker_id])
+            else:
+                last_seg = merged_segments[-1]
+                # 如果说话人相同且当前段起始 <= 上一段结束，则合并
+                if real_speaker_id == last_seg[2]:
+                    last_seg[1] = max(last_seg[1], end_time)  # 扩展结束时间
+                else:
+                    merged_segments.append([start_time, end_time, real_speaker_id])
+
+        # 保存每个说话人的完整音频
+        separated_audio_files = []
+        original_filename = os.path.basename(wav_path)
+        file_name, _ = os.path.splitext(original_filename)
+
+        for i in range(num_speakers):
+            filename = f"{file_name}_speaker{i}.wav"
+            output_audio_path_full = os.path.join(audio_output_path, filename)
+            sf.write(output_audio_path_full, audio_out[i], sr)
+            separated_audio_files.append(output_audio_path_full)
+        
+        metadata = {"audio_source": original_filename, "segments": []}
+
+        for seg_idx, (start_time, end_time, speaker_id) in enumerate(merged_segments):
+            identity = ["主叫", "被叫"]
+
+            # 记录元数据
+            metadata["segments"].append({
+                "id": f"{file_name}_speaker{i}",
+                "speaker": f"speaker{speaker_id}",
+                "identity": identity[speaker_id] if speaker_id < 2 else "其他",
+                "start_time": start_time,
+                "end_time": end_time,
+                "duration": end_time - start_time,
+                "file_path": separated_audio_files[speaker_id]
+            })
+
+        # 保存元数据
+        save_dir = os.path.join(settings.OUTPUT_DIR, settings.SEGMENTATION_OUTPUT_DIR, file_name)
+        with open(os.path.join(save_dir, f"{file_name}.json"), 'w') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+        return separated_audio_files
 
     def _run_diarization(self, input_files: List[str], num_speakers: int) -> Optional[List[str]]:
         print("++++++++ Stage 1: Speaker Diarization ++++++++")
         audio_output_path = os.path.join(self.workspace, "dataset", "audio")
         os.makedirs(audio_output_path, exist_ok=True)
         
-        separated_audio_files = []
         sd_pipeline = pipeline(
             task='speaker-diarization',
             model=settings.DIARIZATION_MODEL_PATH,
@@ -64,12 +116,7 @@ class DiarizationClusterService:
                     print(f"[WARNING] Diarization failed for {file_path}. Skipping.")
                     continue
 
-                file_name, _ = os.path.splitext(os.path.basename(file_path))
-                for i in range(num_speakers):
-                    filename = f"{file_name}_speaker{i}.wav"
-                    output_audio_path_full = os.path.join(audio_output_path, filename)
-                    self._extract_speaker_audio(file_path, result['text'], i, output_audio_path_full)
-                    separated_audio_files.append(output_audio_path_full)
+                separated_audio_files = self._extract_speaker_audio(file_path, result['text'], num_speakers, audio_output_path)
             except Exception as e:
                 print(f"[ERROR] Error processing {file_path} in Stage 1: {e}")
                 continue
