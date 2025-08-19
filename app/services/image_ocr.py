@@ -14,7 +14,6 @@ import cv2
 from app.config.settings import settings
 from utils.io_suppressor import suppress_stdout_stderr
 
-LANG = "ch"
 with suppress_stdout_stderr():
     # 全局加载PaddleOCR模型（建议单例）
     OCR_ENGINE = PaddleOCR(
@@ -24,7 +23,6 @@ with suppress_stdout_stderr():
         use_textline_orientation=False,
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
-        lang=LANG,
         device="gpu" if settings.USE_GPU else "cpu"
         # ocr_version="PP-OCRv5"  # 明确指定版本
     )
@@ -66,7 +64,7 @@ def preprocess_image(image_path: str):
         cv2.THRESH_BINARY, 11, 2
     )
 
-async def recognize_text(image_path: str, lang: str = 'ch'):
+async def recognize_text(image_path: str):
     """
     执行OCR识别
     :param image_path: 图片路径
@@ -75,22 +73,7 @@ async def recognize_text(image_path: str, lang: str = 'ch'):
     """
     try:
         # 动态切换语言模型
-        global LANG
         global OCR_ENGINE
-        if lang != LANG:
-            LANG = lang
-            with suppress_stdout_stderr():
-                OCR_ENGINE = PaddleOCR(
-                    text_detection_model_dir='./pretrained_models/paddleocr/PP-OCRv5_server_det',
-                    text_recognition_model_dir='./pretrained_models/paddleocr/PP-OCRv5_server_rec',
-                    # textline_orientation_model_dir='./pretrained_models/paddleocr/PP-LCNet_x1_0_textline_ori',
-                    use_textline_orientation=False,
-                    use_doc_orientation_classify=False,
-                    use_doc_unwarping=False,
-                    lang=lang,
-                    device="gpu" if settings.USE_GPU else "cpu"
-                    # ocr_version="PP-OCRv5"  # 明确指定版本
-                )
         
         result = OCR_ENGINE.predict(input=image_path)
         # for res in result:
@@ -98,7 +81,8 @@ async def recognize_text(image_path: str, lang: str = 'ch'):
 
         # 结构化输出
         formatted_results = []
-        for page in result:  # 支持多页文档
+        for i, page in enumerate(result, start=1):  # 支持多页文档
+            formatted_page = []
             # page.print()
 
             # if hasattr(page, '__dict__'):
@@ -110,13 +94,18 @@ async def recognize_text(image_path: str, lang: str = 'ch'):
                 # 获取对应文本的索引
                 idx = page['rec_texts'].index(item)
                 
-                formatted_results.append({
+                formatted_page.append({
                     "text": item,
-                    "confidence": float(page['rec_scores'][idx]),
+                    "confidence": page['rec_scores'][idx],
                     "position": page['rec_polys'][idx].tolist(),
-                    "language": lang,
-                    "box": page['rec_boxes'][idx].tolist()  # 新增box字段
+                    "box": page['rec_boxes'][idx].tolist()
                 })
+            
+            formatted_results.append({
+                "page": i,
+                "content": formatted_page,
+                "total_text": " ".join([r["text"] for r in formatted_page])
+            })
         
         return formatted_results
     
@@ -149,14 +138,13 @@ async def process_ocr_files(file_requests: List[Dict]):
                 invalid_files.append(f"文件不存在: {file_path}")
                 continue
             
-            # 执行OCR（这里简化处理，实际可先检测语种）
+            # 执行OCR
             ocr_results = await recognize_text(local_path)
             
             processed_files.append({
                 "file_id": file_id,
                 "file_path": file_path,
-                "ocr_results": ocr_results,
-                "total_text": " ".join([r["text"] for r in ocr_results])
+                "ocr_results": ocr_results
             })
             # print(processed_files)
             

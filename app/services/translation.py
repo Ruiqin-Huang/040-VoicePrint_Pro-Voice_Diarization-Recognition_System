@@ -1,5 +1,6 @@
 import os
 from typing import List, Dict, Any
+from tqdm import tqdm
 from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
 from app.services.tokenization_small100 import SMALL100Tokenizer
 
@@ -75,25 +76,21 @@ async def process_translation(
     processed_files = []
     invalid_files = []
 
-    for file_request in file_requests:
+    for text in tqdm(file_requests, desc="Translating text"):
         try:
-            with open(file_request.file_path, 'r', encoding='utf-8') as f:
-                text = f.read().strip()
-                translated = translate_text(text, source_lang, target_lang, model_type)
-                
-                processed_files.append({
-                    "file_id": file_request.id,
-                    "file_path": file_request.file_path,
-                    "source_lang": source_lang,
-                    "source_lang_name": settings.LANG_DICT.get(source_lang, "其他语言"),
-                    "source_text": text,
-                    "target_lang": target_lang,
-                    "target_lang_name": settings.LANG_DICT.get(target_lang, "其他语言"),
-                    "translated_text": translated,
-                    "model_name": MODEL_CONFIG[model_type]["model_name"]
-                })
+            translated = translate_text(text, source_lang, target_lang, model_type)
+            
+            processed_files.append({
+                "source_lang": source_lang,
+                "source_lang_name": settings.LANG_DICT.get(source_lang, "其他语言"),
+                "source_text": text,
+                "target_lang": target_lang,
+                "target_lang_name": settings.LANG_DICT.get(target_lang, "其他语言"),
+                "translated_text": translated,
+                "model_name": MODEL_CONFIG[model_type]["model_name"]
+            })
         except Exception as e:
-            invalid_files.append(f"{file_request.file_path}: {str(e)}")
+            invalid_files.append(f"{text}: {str(e)}")
     
     return {"processed_files": processed_files, "invalid_files": invalid_files}
 

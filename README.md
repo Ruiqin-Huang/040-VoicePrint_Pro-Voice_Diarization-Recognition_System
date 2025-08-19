@@ -1058,6 +1058,240 @@ API响应使用JSON格式，包含以下字段：
 }
 ```
 
+### 语种检测接口
+
+实现文本语种检测功能，对输入的文本进行语言识别和分类。
+
+- **URL**: `/api/language_detection`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收文本列表，对每个文本进行语种检测，返回语言识别结果。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+| 参数名 | 类型 | 必填 | 说明 |
+| ------ | ---- | ---- | ---- |
+| text | Array[String] | 是 | 待检测的文本列表 |
+
+请求体示例：
+```json
+{
+  "text": [
+    "Hello, this is an English text for language detection.",
+    "你好，这是一个用于语种检测的中文文本。"
+  ]
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Array[Object] | 响应数据，包含语种检测结果列表 |
+
+**data 数组中的对象结构：**
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| language | String | 检测到的语言代码 |
+| language_name | String | 语言中文名称 |
+| confidence | String | 检测置信度（0-1之间的数值字符串） |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": [
+        {
+            "language": "en",
+            "language_name": "英语",
+            "confidence": "0.98"
+        },
+        {
+            "language": "zh",
+            "language_name": "中文",
+            "confidence": "0.96"
+        }
+    ]
+}
+```
+
+### 图像OCR识别接口
+
+实现图像文字识别功能，对上传的图像文件进行光学字符识别（OCR）处理。
+
+- **URL**: `/api/image_ocr`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收图像文件路径列表，对每个文件进行OCR识别处理，返回结构化识别结果。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+| 参数名 | 类型 | 必填 | 说明 |
+| ------ | ---- | ---- | ---- |
+| files | Array[Object] | 是 | 图像文件列表，每个文件对象包含文件信息 |
+
+**FileRequest 对象结构：**
+| 参数名 | 类型 | 必填 | 说明 |
+| ------ | ---- | ---- | ---- |
+| id | String | 是 | 文件唯一标识 |
+| file_path | String | 是 | 文件路径或URL |
+
+请求体示例：
+```json
+{
+  "files": [
+    {
+      "id": "1",
+      "file_path": "./test.png"
+    }
+  ]
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Array[Object] | 响应数据，包含OCR识别结果列表 |
+
+**data 数组中的对象结构：**
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| file_id | String | 文件唯一标识 |
+| file_path | String | 文件原始路径 |
+| ocr_results | Array[Object] | OCR识别结果，可以包含多个页面信息（如pdf文件） |
+
+**ocr_results 页面对象结构：**
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| page | String | 页码 |
+| content | Array[Object] | 文本框识别结果列表 |
+| total_text | String | 页面所有文本拼接后的完整内容 |
+
+**content 文本框对象结构：**
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| text | String | 识别出的文字内容 |
+| confidence | Float | 识别置信度 |
+| position | Array[Array[Float]] | 文本框矩形顶点的坐标列表 |
+| box | Array[Float] | 文本框矩形边界坐标 |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": [
+        {
+            "file_id": "1",
+            "file_path": "./test.png",
+            "ocr_results": [
+                {
+                    "page": "1",
+                    "content": [
+                        {
+                            "text": "Hello World",
+                            "confidence": 0.95,
+                            "position": [[105, 203], [120, 203], [120, 401], [105, 401]],
+                            "box": [105, 203, 120, 401]
+                        },
+                        {
+                            "text": "OCR Recognition",
+                            "confidence": 0.92,
+                            "position": [[150, 500], [200, 500], [200, 650], [150, 650]],
+                            "box": [150, 500, 200, 650]
+                        }
+                    ],
+                    "total_text": "Hello World OCR Recognition"
+                }
+            ]
+        }
+    ]
+}
+```
+
+### 翻译接口
+
+实现文本翻译功能，根据上传的文本文件或OCR识别结果进行多语言翻译。
+
+- **URL**: `/api/translation`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收待翻译文件列表和翻译配置，对每个文件进行翻译处理，返回翻译结果。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+| 参数名 | 类型 | 必填 | 说明 |
+| ------ | ---- | ---- | ---- |
+| text | Array[String] | 是 | 待翻译文本列表 |
+| source_lang | String | 是 | 源语言代码，如 'en'(英文)、'zh'(中文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文) |
+| target_lang | String | 是 | 目标语言代码，如 'zh'(中文)、'en'(英文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文) |
+| model_name | String | 否 | 翻译模型选项，可选值包括 'm2m100'(默认)、'small100' |
+
+请求体示例：
+```json
+{
+  "text": [
+    "Hello, this is an English document for translation."
+  ],
+  "source_lang": "en",
+  "target_lang": "zh",
+  "model_name": "m2m100"
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| retcode | Integer | 响应码，200000表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Array[Object] | 响应数据，包含翻译结果列表 |
+
+**data 数组中的对象结构：**
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| source_lang | String | 源语言代码 |
+| source_lang_name | String | 源语言中文名称 |
+| source_text | String | 原文内容 |
+| target_lang | String | 目标语言代码 |
+| target_lang_name | String | 目标语言中文名称 |
+| translated_text | String | 翻译结果全文 |
+| model_name | String | 使用的翻译模型标识 |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": [
+        {
+            "source_lang": "en",
+            "source_lang_name": "英语",
+            "source_text": "Hello, this is an English document for translation.",
+            "target_lang": "zh", 
+            "target_lang_name": "中文",
+            "translated_text": "你好，这是一个用于翻译的英文文档。",
+            "model_name": "m2m100"
+        }
+    ]
+}
+```
+
 ### 通过APIFOX进行测试
 
 1. 语音分割接口：/api/speech_segmentation

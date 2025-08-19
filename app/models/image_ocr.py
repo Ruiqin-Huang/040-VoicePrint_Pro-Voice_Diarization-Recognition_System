@@ -1,42 +1,48 @@
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from app.models.file_request import FileRequest
+
+# 请求模型
+class ImageOCRRequest(BaseModel):
+    files: List[FileRequest]
+    
+    @validator('files')
+    def files_must_not_be_empty(cls, v):
+        if not v:
+            raise ValueError("文件列表不能为空")
+        return v
 
 class OCRTextBox(BaseModel):
     """
     单个文本框的OCR识别结果
     :param text: 识别出的文字内容
-    :param confidence: 置信度（0-1之间的浮点数）
-    :param position: 文字区域坐标（多边形点的列表）
-    :param language: 使用的语言模型（如 'ch', 'en' 等）
-    :param box: 文本框的矩形边界（四个点）
+    :param confidence: 置信度
+    :param position: 文本框的矩形顶点坐标列表
+    :param box: 文本框的矩形边界坐标
     """
     text: str
-    confidence: float
-    position: List[List[float]]
-    language: str
-    box: List[List[float]]
+    confidence: str
+    position: List[List[str]]
+    box: List[str]
 
+class OCRPage(BaseModel):
+    """
+    单个页面的OCR识别结果
+    :param page: 页码
+    :param content: 多个文本框识别结果
+    :param total_text: 拼接后的总文本
+    """
+    page: str
+    content: List[OCRTextBox]
+    total_text: str
 
-class OCRResult(BaseModel):
+class OCResponseData(BaseModel):
     """
     单个文件的OCR识别结果
     :param file_id: 文件ID
     :param file_path: 文件路径
-    :param ocr_results: 多个文本框识别结果
-    :param total_text: 拼接后的总文本
+    :param ocr_results: 多个页面识别结果
     """
     file_id: str
     file_path: str
-    ocr_results: List[OCRTextBox]
-    total_text: str
-
-
-class OCRResponse(BaseModel):
-    """
-    OCR处理响应结果
-    :param processed_files: 成功识别的文件列表
-    :param invalid_files: 无法处理的文件路径
-    """
-    processed_files: List[OCRResult]
-    invalid_files: List[str]
+    ocr_results: List[OCRPage]

@@ -77,37 +77,13 @@ async def process_text_files(file_requests: List[FileRequest]):
     invalid_files = []
     temp_files = []
 
-    for file_request in tqdm(file_requests, desc="Processing text files"):
-        file_id = file_request.id
-        file_path = file_request.file_path
+    for text in tqdm(file_requests, desc="Detecting languages"):
         
         try:
-            # 处理URL或本地路径
-            local_path = file_path
-            if await is_url(file_path):
-                local_path = await download_file(file_path)
-                temp_files.append(local_path)
-
-            # 验证文件存在
-            if not os.path.exists(local_path):
-                invalid_files.append(f"文件不存在: {file_path}")
-                continue
-            
-            # 读取文本内容（自动处理编码）
-            with open(local_path, 'rb') as f:
-                raw_data = f.read()
-                text = raw_data.decode('utf-8', errors='replace').strip()
-            
-            if not text:
-                invalid_files.append(f"空文件: {file_path}")
-                continue
-            
             # 执行语种检测
             lang, confidence = detect_language(text)
             
             processed_files.append({
-                "file_id": file_id,
-                "file_path": file_path,
                 "language": lang,
                 "language_name": settings.LANG_DICT.get(lang, "其他语言"),
                 "confidence": float(confidence)  # 确保JSON可序列化
@@ -115,7 +91,7 @@ async def process_text_files(file_requests: List[FileRequest]):
             })
             
         except Exception as e:
-            invalid_files.append(f"{file_path}: {str(e)}")
+            invalid_files.append(f"{text}: {str(e)}")
     
     # 清理临时文件
     for temp_file in temp_files:

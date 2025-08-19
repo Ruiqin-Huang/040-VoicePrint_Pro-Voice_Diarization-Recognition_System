@@ -2,35 +2,26 @@ from fastapi import APIRouter, Depends, HTTPException
 import traceback
 from typing import List
 
-# from app.config.path_mapper import PathMapper
-# from app.dependencies import get_path_mapper
 from app.models.common import ResponseResult
-from app.models.speech_recognition import (
-    RecognizedDetails,
-    SpeechRecognitionRequest, 
-    SpeechRecognitionResponseData, 
-    RecognizedFile
-)
-from app.services.speech_recognition import process_speech_files
+from app.models.image_ocr import ImageOCRRequest, OCRTextBox, OCRPage, OCResponseData
+from app.services.image_ocr import process_ocr_files
 from app.core.error_codes import ResponseCode
-# from utils.helpers import extract_keywords, translate_text
 
 router = APIRouter(prefix="/api")
 
-@router.post("/speech_recognition", response_model=ResponseResult)
-async def speech_recognition(request: SpeechRecognitionRequest):
-    """语音识别API - 将语音转换为文本"""
+@router.post("/image_ocr", 
+             response_model=ResponseResult)
+async def image_ocr(requests: ImageOCRRequest):
+    """图片OCR识别API - 识别图片上的文本"""
     try:
-        if not request.files:
+        if not requests.files:
             return ResponseResult(
                 retcode=ResponseCode.INVALID_PARAM,
                 msg="文件列表不能为空",
                 data=None
             )
         
-        processed_files, invalid_files = await process_speech_files(
-            request.files
-        )
+        processed_files, invalid_files = await process_ocr_files(requests.files)
         
         if not processed_files:
             if invalid_files:
@@ -42,33 +33,37 @@ async def speech_recognition(request: SpeechRecognitionRequest):
             else:
                 return ResponseResult(
                     retcode=ResponseCode.INVALID_PARAM,
-                    msg="没有找到可处理的音频文件",
+                    msg="没有找到可处理的图像文件",
                     data=None
                 )
         
         # 将服务层返回的结果转换为响应格式
         response_data = []
         for result in processed_files:
-            recognized_files = [
-                RecognizedFile(
-                    identity=recognition["identity"],
-                    call_records=recognition["text"],
-                    call_records_details=RecognizedDetails(
-                        start=recognition["start_time"],
-                        end=recognition["end_time"],
-                        text="",
-                        no_speech_prob=recognition["no_speech_prob"]
+            ocr_pages = []
+            
+            for page_result in result["ocr_results"]:
+                ocr_pages.append(
+                    OCRPage(
+                        page=str(page_result["page"]),
+                        content=[                        
+                            OCRTextBox(
+                                text=box_result["text"],
+                                confidence=box_result["confidence"],
+                                position=box_result["position"],
+                                box=box_result["box"]
+                            )
+                            for box_result in page_result["content"]
+                        ],
+                        total_text=page_result["total_text"]
                     )
                 )
-                for recognition in result["recognitions"]
-            ]
-
+            
             response_data.append(
-                SpeechRecognitionResponseData(
+                OCResponseData(
                     file_id=result["file_id"],
-                    call_original=result["call_original"],
-                    call_translation="",
-                    call_records_collections=recognized_files
+                    file_path=result["file_path"],
+                    ocr_results=ocr_pages
                 )
             )
         
