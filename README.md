@@ -757,6 +757,100 @@ segment_files数组中的每个对象包含以下字段：
 }
 ```
 
+### 说话人分割及声纹聚类接口
+
+#### 接口概述
+
+该API对输入的多个音频文件执行说话人分割，然后对分割出的所有音频片段进行声纹聚类，最终识别出不同的说话人并构建声纹库。
+
+- **URL**: `/api/audio_diarization_cluster`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 接收一个音频文件路径列表，对每个文件进行说话人分割，然后对所有分割后的片段进行聚类，返回聚类结果和工作区路径。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+
+| 参数名 | 类型 | 必填 | 描述 |
+| --- | --- | --- | --- |
+| audio_files | Array[String] | 是 | 待处理的音频文件绝对路径列表。 |
+| num_speakers_per_audio | Integer | 否 | 每个输入音频文件中预期的说话人数量。默认值为 `2`。 |
+
+请求体示例：
+```json
+{
+  "audio_files": [
+    "./example/chinese/zh_1.wav",
+    "./example/chinese/zh_2.wav",
+    "./example/chinese/zh_3.wav"
+  ],
+  "num_speakers_per_audio": 2
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| retcode | Integer | 响应码，`200000`表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含聚类结果，失败时为 `null` |
+
+`data` 对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| total_clusters | Integer | 最终聚类出的独立说话人总数。 |
+| clusters | Array[Object] | 包含每个说话人聚类信息的列表。 |
+| workspace | String | 本次任务的工作目录绝对路径，所有中间文件（分割音频、VAD结果、嵌入向量）和最终结果（声纹库）都保存在此。 |
+
+`clusters` 数组中的每个对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| speaker_id | String | 聚类后分配的说话人ID，例如 "speaker_0"。 |
+| audio_files | Array[String] | 属于该说话人的所有音频片段的**相对路径**（相对于工作区路径）。 |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "total_clusters": 2,
+        "clusters": [
+            {
+                "speaker_id": "speaker_0",
+                "audio_files": [
+                    "dataset/audio/zh_1_speaker0.wav",
+                    "dataset/audio/zh_1_speaker1.wav",
+                    "dataset/audio/zh_3_speaker1.wav"
+                ]
+            },
+            {
+                "speaker_id": "speaker_1",
+                "audio_files": [
+                    "dataset/audio/zh_2_speaker0.wav",
+                    "dataset/audio/zh_2_speaker1.wav",
+                    "dataset/audio/zh_3_speaker0.wav"
+                ]
+            }
+        ],
+        "workspace": "/home/hrq/DHG-Workspace/040/040-VoicePrint_Pro-Voice_Diarization-Recognition_System/workspace"
+    }
+}
+```
+
+失败响应示例（文件未找到）：
+```json
+{
+    "retcode": 100000,
+    "msg": "Input audio file not found: /path/to/non_existent_file.wav",
+    "data": null
+}
+```
+
 ### 语音识别接口
 
 实现语音转文字，根据上传的语音素材文件进行语音识别。

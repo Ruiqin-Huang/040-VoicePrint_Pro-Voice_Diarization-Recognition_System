@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     WHISPER_MODEL_SIZE: str = "medium"
     DIARIZATION_MODEL_PATH: str = "./pretrained_models/iic/speech_campplus_speaker-diarization_common"
     DIARIZATION_MODEL_REVISION: str = "v1.0.0"
+    VAD_MODEL_PATH: str = "./pretrained_models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    VAD_MODEL_REVISION: str = "v2.0.4"
+    SPEAKER_EMBEDDING_MODEL_PATH: str = "./pretrained_models/iic/speech_campplus_sv_zh_en_16k-common_advanced"
+    SPEAKER_EMBEDDING_MODEL_FILE: str = "campplus_cn_en_common.pt"
     ENTITY_EXTRACTION_MODEL_PATH: str = "./pretrained_models/iic/nlp_seqgpt-560m"
     FASTTEXT_CACHE_DIR: str = "./pretrained_models/fasttext/lid.176.bin"
     PADDLEOCR_CACHE_DIR: str = "./pretrained_models/paddleocr/"
@@ -44,6 +48,36 @@ class Settings(BaseSettings):
     # GPU设置
     USE_GPU: bool = True
     GPU_ID: int = 0
+    
+    # 说话人聚类配置
+    DIAR_CLUSTER_CONFIG_CONTENT: str = """
+fbank_dim: 80
+embedding_size: 192
+
+feature_extractor:
+  obj: speakerlab.process.processor.FBank
+  args:
+    n_mels: <fbank_dim>
+    sample_rate: 16000
+    mean_nor: True
+
+embedding_model:
+  obj: speakerlab.models.campplus.DTDNN.CAMPPlus
+  args:
+    feat_dim: <fbank_dim>
+    embedding_size: <embedding_size>
+
+cluster:
+  obj: speakerlab.process.cluster.CommonClustering 
+  args:
+    cluster_type: spectral
+    mer_cos: 0.85
+    min_num_spks: 1
+    max_num_spks: 200
+    min_cluster_size: 1
+    oracle_num: null
+    pval: 0.012
+"""
     
     class Config:
         case_sensitive = True

@@ -28,7 +28,7 @@ def convert_to_yaml(overrides):
 
 
 def yaml_config_loader(conf_file, overrides=None):
-    with open(conf_file, "r") as fr:
+    with open(conf_file, "r", encoding='utf-8') as fr:
         conf_dict = yaml.load(fr, Loader=yaml.FullLoader)
     if overrides is not None:
         overrides = yaml.load(overrides, Loader=yaml.FullLoader)
