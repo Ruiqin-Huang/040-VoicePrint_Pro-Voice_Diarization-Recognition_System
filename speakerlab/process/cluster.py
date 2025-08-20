@@ -186,10 +186,12 @@ class CommonClustering:
         assert len(X.shape) == 2, 'Shape of input should be [N, C]'
         if X.shape[0] <= 1:
             return np.zeros(X.shape[0], dtype=int)
-        if X.shape[0] < self.cluster_line:
-            labels = self.cluster_for_short(X)
-        else:
-            labels = self.cluster(X, **kwargs)
+        # 在 cluster.py 的 CommonClustering 类中，存在一个逻辑判断：如果输入的音频数量（即嵌入向量的数量）少于 self.cluster_line（默认为40），则会使用一个备用的、更适合小数据集的聚类方法 AHCluster（凝聚层次聚类），而不是你配置的 spectral（谱聚类）。
+        # if X.shape[0] < self.cluster_line:
+        #     labels = self.cluster_for_short(X)
+        # else:
+        #     labels = self.cluster(X, **kwargs)
+        labels = self.cluster(X, **kwargs)
 
         # remove extremely minor cluster
         labels = self.filter_minor_cluster(labels, X, self.min_cluster_size)

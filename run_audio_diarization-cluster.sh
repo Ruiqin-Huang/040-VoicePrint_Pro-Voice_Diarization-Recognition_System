@@ -6,8 +6,8 @@ set -e
 # ./run_audio_diarization-cluster.sh --help to see the help message
 
 # 定义默认值
-DEFAULT_AUDIO_DIR="./example/audio_7_speakers"
-DEFAULT_WORKSPACE="./workspaces/demo_aishell-1_7_speakers"
+DEFAULT_AUDIO_DIR="./example/test"
+DEFAULT_WORKSPACE="./workspaces/demo"
 DEFAULT_NUM_SPEAKERS=2
 DEFAULT_GPUS=""
 DEFAULT_PROC_PER_NODE=8

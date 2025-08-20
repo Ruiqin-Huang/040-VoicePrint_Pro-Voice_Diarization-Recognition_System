@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # 应用基本配置
     APP_NAME: str = "语音处理服务"
     DEBUG: bool = True
-    PORT: int = 8765
+    PORT: int = 8764
     
     # 模型路径配置
     MODEL_DIR: str = "./pretrained_models"
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     USE_GPU: bool = True
     GPU_ID: int = 0
     
-    # 说话人聚类配置
+    # 说话人聚类配置（使用谱聚类）
     DIAR_CLUSTER_CONFIG_CONTENT: str = """
 fbank_dim: 80
 embedding_size: 192
@@ -74,9 +74,9 @@ cluster:
     mer_cos: 0.85
     min_num_spks: 1
     max_num_spks: 200
-    min_cluster_size: 1
+    min_cluster_size: 0
     oracle_num: null
-    pval: 0.012
+    pval: 0.0012
 """
     
     class Config:
