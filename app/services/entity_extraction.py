@@ -27,18 +27,20 @@ except Exception as e:
     # 如果模型加载失败，则在启动时抛出异常
     raise RuntimeError(f"实体抽取模型加载失败: {e}")
 
-def _parse_result(result_str: str) -> Dict[str, str]:
+def _parse_result(result_str: str) -> List[Dict[str, str]]:
     """
-    将模型输出的字符串解析为字典
+    将模型输出的字符串解析为字典列表
     """
-    result = {}
+    results_list = []
     for line in result_str.strip().split('\n'):
         if ':' in line:
             key, value = line.split(':', 1)
-            result[key.strip()] = value.strip()
-    return result
+            # 只添加有实际抽取结果的实体
+            if value.strip().lower() not in ["", "none", "无"]:
+                results_list.append({"type": key.strip(), "name": value.strip()})
+    return results_list
 
-async def process_entity_extraction(text: str, entity_types: Optional[List[str]] = None) -> Dict[str, str]:
+async def process_entity_extraction(text: str, entity_types: Optional[List[str]] = None) -> List[Dict[str, str]]:
     """
     执行实体抽取
     :param text: 待抽取的文本
