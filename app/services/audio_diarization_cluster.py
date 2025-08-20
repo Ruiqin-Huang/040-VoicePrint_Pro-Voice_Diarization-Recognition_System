@@ -91,6 +91,7 @@ class DiarizationClusterService:
 
         # 保存元数据
         save_dir = os.path.join(settings.OUTPUT_DIR, settings.SEGMENTATION_OUTPUT_DIR, file_name)
+        os.makedirs(save_dir, exist_ok=True)
         with open(os.path.join(save_dir, f"{file_name}.json"), 'w') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
 
@@ -100,6 +101,8 @@ class DiarizationClusterService:
         print("++++++++ Stage 1: Speaker Diarization ++++++++")
         audio_output_path = os.path.join(self.workspace, "dataset", "audio")
         os.makedirs(audio_output_path, exist_ok=True)
+        
+        separated_audio_files = []
         
         sd_pipeline = pipeline(
             task='speaker-diarization',
@@ -116,7 +119,8 @@ class DiarizationClusterService:
                     print(f"[WARNING] Diarization failed for {file_path}. Skipping.")
                     continue
 
-                separated_audio_files = self._extract_speaker_audio(file_path, result['text'], num_speakers, audio_output_path)
+                new_files = self._extract_speaker_audio(file_path, result['text'], num_speakers, audio_output_path)
+                separated_audio_files.extend(new_files)
             except Exception as e:
                 print(f"[ERROR] Error processing {file_path} in Stage 1: {e}")
                 continue
