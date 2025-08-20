@@ -21,4 +21,4 @@ class LanguageDetectionResponseData(BaseModel):
     """
     language: str
     language_name: str
-    confidence: str
+    confidence: float
