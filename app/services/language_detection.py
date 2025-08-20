@@ -14,13 +14,6 @@ from app.config.settings import settings
 
 # 全局加载FastText语种检测模型（建议在应用启动时加载）
 LANG_DETECTOR = fasttext.load_model(settings.FASTTEXT_CACHE_DIR)
-LANG_DICT = {
-    'zh': "中文",
-    'en': "英文",
-    'ru': "俄文",
-    'ja': "日文",
-    'mn': "蒙文"
-}
 
 async def is_url(path: str) -> bool:
     """检查路径是否为URL"""
@@ -58,6 +51,7 @@ def detect_language(text: str):
     if len(cleaned_text) < 10:
         return "unknown", 0.0
     
+    global LANG_DETECTOR
     # 执行预测
     predictions = LANG_DETECTOR.predict(cleaned_text, k=1)
     # print(predictions)

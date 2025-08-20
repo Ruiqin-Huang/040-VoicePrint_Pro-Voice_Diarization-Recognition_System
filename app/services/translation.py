@@ -29,8 +29,8 @@ def load_model(model_type: str = "m2m100"):
     """加载指定类型的模型和tokenizer"""
     if model_type not in _MODELS:
         config = MODEL_CONFIG[model_type]
-        model = config["class"][0].from_pretrained(config["model_dir"])
-        tokenizer = config["class"][1].from_pretrained(config["model_dir"], clean_up_tokenization_spaces=True)
+        model = config["class"][0].from_pretrained(config["model_dir"], local_files_only=True)
+        tokenizer = config["class"][1].from_pretrained(config["model_dir"], clean_up_tokenization_spaces=True, local_files_only=True)
         _MODELS[model_type] = (model, tokenizer)
     return _MODELS[model_type]
 
