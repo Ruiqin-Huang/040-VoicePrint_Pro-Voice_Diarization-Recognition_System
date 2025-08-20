@@ -2,7 +2,7 @@ from fastapi import APIRouter
 import traceback
 
 from app.models.common import ResponseResult
-from app.models.entity_extraction import EntityExtractionRequest
+from app.models.entity_extraction import EntityExtractionRequest, EntityExtractionResponseData, EntityResult
 from app.services.entity_extraction import process_entity_extraction
 from app.core.error_codes import ResponseCode
 
@@ -14,12 +14,12 @@ async def entity_extraction(request: EntityExtractionRequest):
     实体抽取API - 从给定文本中抽取指定类型的实体
     """
     try:
-        result_dict = await process_entity_extraction(request.text, request.entity_types)
+        result_list = await process_entity_extraction(request.text, request.entity_types)
         
         return ResponseResult(
             retcode=ResponseCode.SUCCESS,
             msg="success",
-            data=result_dict
+            data=result_list  # 直接将列表放入data字段
         )
         
     except ValueError as e:
