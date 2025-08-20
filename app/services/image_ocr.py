@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 
 from app.config.settings import settings
+from app.models.file_request import FileRequest
 from utils.io_suppressor import suppress_stdout_stderr
 
 with suppress_stdout_stderr():
@@ -173,23 +174,24 @@ async def process_ocr_files(file_requests: List[Dict]):
 #     )
 #     vis.save(output_path)
 
-# # 使用示例
-# async def main():
-#     test_requests = [
-#          FileRequest(id=1, file_path='./readme_assets/说话人分割系统.png')
-#     ]
+# 使用示例
+async def main():
+    test_requests = [
+         FileRequest(id="1", file_path='./readme_assets/说话人分割系统.png')
+    ]
     
-#     results, errors = await process_ocr_files(test_requests)
-#     print(f"成功: {len(results)} 个, 失败: {len(errors)} 个")
+    results, errors = await process_ocr_files(test_requests)
+    print(f"成功: {len(results)} 个, 失败: {len(errors)} 个")
+    print(results)
     
-#     # # 可视化第一个结果
-#     # if results:
-#     #     visualize_results(
-#     #         results[0]['file_path'],
-#     #         results[0]['ocr_results'],
-#     #         "ocr_result_visualization.jpg"
-#     #     )
+    # # 可视化第一个结果
+    # if results:
+    #     visualize_results(
+    #         results[0]['file_path'],
+    #         results[0]['ocr_results'],
+    #         "ocr_result_visualization.jpg"
+    #     )
 
-# if __name__ == "__main__":
-#     import asyncio
-#     asyncio.run(main())
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())

@@ -21,9 +21,9 @@ class OCRTextBox(BaseModel):
     :param box: 文本框的矩形边界坐标
     """
     text: str
-    confidence: str
-    position: List[List[str]]
-    box: List[str]
+    confidence: float
+    position: List[List[int]]
+    box: List[int]
 
 class OCRPage(BaseModel):
     """
