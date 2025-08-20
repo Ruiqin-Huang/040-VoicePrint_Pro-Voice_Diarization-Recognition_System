@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     ffmpeg \
     git \
+    build-essential \
+    cmake \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装Miniconda
