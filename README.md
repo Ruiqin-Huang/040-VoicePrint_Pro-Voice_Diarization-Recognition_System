@@ -1153,10 +1153,13 @@ API响应使用JSON格式，包含以下字段：
     "retcode": 200000,
     "msg": "success",
     "data": {
-        "财经事件/事件触发词": "暴跌",
-        "事件财经/主体": "腾讯",
-        "事件财经/客体": "None",
-        "事件财经/时间": "None"
+        "trigger": "暴跌",
+		    "arguments":[
+            {"name":"主体","value":"腾讯"},
+            {"name":"客体","value":"None"},
+            {"name":"时间","value":"None"}
+		    ],
+        "event_type": "财经"
     }
 }
 ```

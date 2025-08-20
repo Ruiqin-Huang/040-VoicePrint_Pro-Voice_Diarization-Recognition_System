@@ -21,9 +21,7 @@ async def translation(requests: TranslationRequest):
                 data=None
             )
         
-        result_dict = await process_translation(requests.text, requests.source_lang, requests.target_lang, requests.model_type)
-        processed_files = result_dict.get("processed_files", [])
-        invalid_files = result_dict.get("invalid_files", [])
+        processed_files, invalid_files = await process_translation(requests.text, requests.source_lang, requests.target_lang, requests.model_type)
         
         if not processed_files:
             if invalid_files:

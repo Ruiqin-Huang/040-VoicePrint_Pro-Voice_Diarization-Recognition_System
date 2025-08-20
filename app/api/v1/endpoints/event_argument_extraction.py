@@ -2,7 +2,7 @@ from fastapi import APIRouter
 import traceback
 
 from app.models.common import ResponseResult
-from app.models.event_argument_extraction import EventArgumentExtractionRequest
+from app.models.event_argument_extraction import EventArgumentExtractionRequest, EventArgumentExtractionResponseData
 from app.services.event_argument_extraction import process_event_argument_extraction
 from app.core.error_codes import ResponseCode
 
@@ -18,10 +18,16 @@ async def event_argument_extraction(request: EventArgumentExtractionRequest):
             request.text, request.event_type, request.argument_types
         )
         
+        response_data = EventArgumentExtractionResponseData(
+            trigger=result_dict["trigger"],
+            arguments=result_dict["arguments"],
+            event_type=result_dict["event_type"]
+        )
+        
         return ResponseResult(
             retcode=ResponseCode.SUCCESS,
             msg="success",
-            data=result_dict
+            data=response_data
         )
         
     except ValueError as e:

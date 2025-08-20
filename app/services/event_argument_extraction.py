@@ -11,17 +11,31 @@ def _parse_result(result_str: str, event_type: str) -> Dict[str, str]:
     """
     将模型输出的字符串解析为字典，并格式化首个键。
     """
-    result = {}
+    result = {
+        "trigger": "",
+        "arguments": [],
+        "event_type": event_type
+    }
     lines = result_str.strip().split('\n')
     for idx, line in enumerate(lines):
         if ':' in line:
             key, value = line.split(':', 1)
             key = key.strip()
             value = value.strip()
-            # 将首行的key（如“财经事件”）转换为“财经事件/事件触发词”
+            # 将首行的key（如“财经事件”）转换为“trigger”
             if idx == 0 and key == f"{event_type}事件":
-                key = f"{event_type}事件/事件触发词"
-            result[key] = value
+                result["trigger"] = value
+            else:
+                # 将其他行转换为argument格式，移除"事件{event_type}/"前缀
+                if key.startswith(f"事件{event_type}/"):
+                    argument_name = key.replace(f"事件{event_type}/", "")
+                else:
+                    argument_name = key
+                argument = {
+                    "name": argument_name,
+                    "value": value
+                }
+                result["arguments"].append(argument)
     return result
 
 async def process_event_argument_extraction(text: str, event_type: str, argument_types: Optional[List[str]] = None) -> Dict[str, str]:

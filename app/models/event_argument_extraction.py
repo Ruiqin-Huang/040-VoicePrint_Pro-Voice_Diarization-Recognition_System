@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, validator
 
 class EventArgumentExtractionRequest(BaseModel):
@@ -11,3 +11,8 @@ class EventArgumentExtractionRequest(BaseModel):
         if not v or not v.strip():
             raise ValueError("text 和 event_type 不能为空")
         return v
+    
+class EventArgumentExtractionResponseData(BaseModel):
+    trigger: str
+    arguments: List[Dict[str, str]]
+    event_type: str

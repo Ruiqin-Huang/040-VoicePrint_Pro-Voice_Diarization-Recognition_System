@@ -92,7 +92,7 @@ async def process_translation(
         except Exception as e:
             invalid_files.append(f"{text}: {str(e)}")
     
-    return {"processed_files": processed_files, "invalid_files": invalid_files}
+    return processed_files, invalid_files
 
 # 使用示例
 if __name__ == "__main__":
