@@ -18,8 +18,7 @@ async def audio_identification_registration(request: AudioIdentificationRequest)
     - **threshold**: (可选) 识别阈值，默认为0.65。
     """
     try:
-        workspace = "./workspace"
-        service = IdentificationRegistrationService(workspace=workspace)
+        service = IdentificationRegistrationService()
         
         result = await service.run_pipeline(
             audio_files=request.audio_files,

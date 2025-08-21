@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     OUTPUT_DIR: str = "./data/output"
     SEGMENTATION_OUTPUT_DIR: str = "speech_segmentation"
     RECOGNITION_OUTPUT_DIR: str = "speech_recognition"
+    DIARIZATION_CLUSTER_OUTPUT_DIR: str = "diarization_cluster"
     
     # 默认语言设置
     DEFAULT_LANGUAGE: str = "zh"

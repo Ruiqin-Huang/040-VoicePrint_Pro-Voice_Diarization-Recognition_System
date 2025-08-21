@@ -27,10 +27,10 @@ from utils.io_suppressor import suppress_stdout_stderr
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 class IdentificationRegistrationService:
-    def __init__(self, workspace: str = "./workspace"):
-        self.workspace = os.path.abspath(workspace)
+    def __init__(self):
+        self.workspace = os.path.join(settings.OUTPUT_DIR, settings.DIARIZATION_CLUSTER_OUTPUT_DIR)
         self.device = f'cuda:{settings.GPU_ID}' if settings.USE_GPU and torch.cuda.is_available() else 'cpu'
-        self.voiceprintlib_dir = os.path.join(self.workspace, 'result', 'voiceprintlib')
+        self.voiceprintlib_dir = os.path.join(self.workspace, 'voiceprintlib')
         self.emb_dir = os.path.join(self.workspace, 'emb')
         os.makedirs(self.workspace, exist_ok=True)
         os.makedirs(self.voiceprintlib_dir, exist_ok=True)
@@ -216,35 +216,51 @@ class IdentificationRegistrationService:
 
     # --- 主流程 ---
     async def run_pipeline(self, audio_files: List[str], num_speakers: int, update_library: bool, threshold: float) -> Dict:
-        # 1. 预处理：分割、VAD、提取嵌入
-        processed_segments = self._preprocess_audios(audio_files, num_speakers)
-        if not processed_segments:
-            raise RuntimeError("Audio preprocessing failed, no segments generated.")
+        conf_path = os.path.join(self.workspace, 'diar.yaml')
+        try:
+            # 1. 预处理：分割、VAD、提取嵌入
+            processed_segments = self._preprocess_audios(audio_files, num_speakers)
+            if not processed_segments:
+                raise RuntimeError("Audio preprocessing failed, no segments generated.")
 
-        # 2. 加载现有声纹库
-        speaker_voiceprints, _ = self._load_voiceprint_library()
-        print(f"Loaded {len(speaker_voiceprints)} speakers from library.")
+            # 2. 加载现有声纹库
+            speaker_voiceprints, _ = self._load_voiceprint_library()
+            print(f"Loaded {len(speaker_voiceprints)} speakers from library.")
 
-        # 3. 执行识别
-        identification_results = self._identify_speakers(processed_segments, speaker_voiceprints, threshold)
-        
-        # 4. 根据需要更新和注册
-        newly_registered, updated_speakers = None, None
-        if update_library:
-            newly_registered, updated_speakers = self._update_and_register(identification_results)
+            # 3. 执行识别
+            identification_results = self._identify_speakers(processed_segments, speaker_voiceprints, threshold)
+            
+            # 4. 根据需要更新和注册
+            newly_registered, updated_speakers = None, None
+            if update_library:
+                newly_registered, updated_speakers = self._update_and_register(identification_results)
 
-        return {
-            "identification_results": identification_results,
-            "newly_registered_speakers": newly_registered,
-            "updated_speakers": updated_speakers,
-            "library_updated": update_library
-        }
+            return {
+                "identification_results": identification_results,
+                "newly_registered_speakers": newly_registered,
+                "updated_speakers": updated_speakers,
+                "library_updated": update_library
+            }
+        finally:
+            # Cleanup temporary files and directories
+            print("[INFO] Cleaning up temporary files for identification service...")
+            if os.path.exists(conf_path):
+                os.remove(conf_path)
+            
+            vad_dir = os.path.join(self.workspace, 'vad')
+            if os.path.exists(vad_dir):
+                shutil.rmtree(vad_dir)
+            
+            # emb_dir is self.emb_dir
+            if os.path.exists(self.emb_dir):
+                shutil.rmtree(self.emb_dir)
+            print("[INFO] Cleanup complete for identification service.")
 
     # --- 复用的辅助方法 ---
     def _run_diarization(self, input_files: List[str], num_speakers: int) -> Optional[List[str]]:
         # (此方法与DiarizationClusterService中的实现基本相同)
         print("... Running Diarization")
-        audio_output_path = os.path.join(self.workspace, "dataset", "audio")
+        audio_output_path = os.path.join(self.workspace, "audio_segmentation")
         os.makedirs(audio_output_path, exist_ok=True)
         separated_audio_files = []
         sd_pipeline = pipeline('speaker-diarization', model=settings.DIARIZATION_MODEL_PATH, model_revision=settings.DIARIZATION_MODEL_REVISION, device=self.device)

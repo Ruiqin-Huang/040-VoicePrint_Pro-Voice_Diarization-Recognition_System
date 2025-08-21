@@ -26,8 +26,8 @@ from utils.io_suppressor import suppress_stdout_stderr
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 class DiarizationClusterService:
-    def __init__(self, workspace: str = "./workspace"):
-        self.workspace = os.path.abspath(workspace)
+    def __init__(self):
+        self.workspace = os.path.join(settings.OUTPUT_DIR, settings.DIARIZATION_CLUSTER_OUTPUT_DIR)
         self.device = f'cuda:{settings.GPU_ID}' if settings.USE_GPU and torch.cuda.is_available() else 'cpu'
         os.makedirs(self.workspace, exist_ok=True)
         print(f"[INFO] Workspace: {self.workspace}, Device: {self.device}")
@@ -99,7 +99,7 @@ class DiarizationClusterService:
 
     def _run_diarization(self, input_files: List[str], num_speakers: int) -> Optional[List[str]]:
         print("++++++++ Stage 1: Speaker Diarization ++++++++")
-        audio_output_path = os.path.join(self.workspace, "dataset", "audio")
+        audio_output_path = os.path.join(self.workspace, "audio_segmentation")
         os.makedirs(audio_output_path, exist_ok=True)
         
         separated_audio_files = []
@@ -226,8 +226,6 @@ class DiarizationClusterService:
 
     def _run_clustering_and_postprocess(self, all_wavs: List[str], conf) -> Optional[Dict]:
         print("++++++++ Stage 4: Cluster Embeddings ++++++++")
-        result_dir = os.path.join(self.workspace, 'result')
-        os.makedirs(result_dir, exist_ok=True)
         emb_dir = os.path.join(self.workspace, 'emb')
         
         all_embeddings, all_paths = [], []
@@ -259,7 +257,7 @@ class DiarizationClusterService:
         return clusters
 
     def _create_voiceprint_library(self, clusters: Dict, emb_dir: str):
-        voiceprintlib_dir = os.path.join(self.workspace, 'result', 'voiceprintlib')
+        voiceprintlib_dir = os.path.join(self.workspace, 'voiceprintlib')
         if os.path.exists(voiceprintlib_dir): shutil.rmtree(voiceprintlib_dir)
         os.makedirs(voiceprintlib_dir)
 
@@ -289,24 +287,39 @@ class DiarizationClusterService:
                 raise FileNotFoundError(f"Input audio file not found: {f}")
 
         conf_path = os.path.join(self.workspace, 'diar.yaml')
-        with open(conf_path, 'w', encoding='utf-8') as f:
-            f.write(settings.DIAR_CLUSTER_CONFIG_CONTENT)
-        conf = build_config(conf_path)
+        try:
+            with open(conf_path, 'w', encoding='utf-8') as f:
+                f.write(settings.DIAR_CLUSTER_CONFIG_CONTENT)
+            conf = build_config(conf_path)
 
-        separated_audios = self._run_diarization(audio_files, num_speakers)
-        if not separated_audios: raise RuntimeError("Stage 1 (Diarization) failed.")
+            separated_audios = self._run_diarization(audio_files, num_speakers)
+            if not separated_audios: raise RuntimeError("Stage 1 (Diarization) failed.")
 
-        if not self._run_vad(separated_audios): raise RuntimeError("Stage 2 (VAD) failed.")
-        
-        if not self._run_prepare_subseg(separated_audios): raise RuntimeError("Stage 3.1 (Sub-segmentation) failed.")
-        
-        if not self._run_extract_embeddings(separated_audios, conf): raise RuntimeError("Stage 3.2 (Embedding Extraction) failed.")
-        
-        final_clusters = self._run_clustering_and_postprocess(separated_audios, conf)
-        if not final_clusters: raise RuntimeError("Stage 4 (Clustering) failed.")
+            if not self._run_vad(separated_audios): raise RuntimeError("Stage 2 (VAD) failed.")
+            
+            if not self._run_prepare_subseg(separated_audios): raise RuntimeError("Stage 3.1 (Sub-segmentation) failed.")
+            
+            if not self._run_extract_embeddings(separated_audios, conf): raise RuntimeError("Stage 3.2 (Embedding Extraction) failed.")
+            
+            final_clusters = self._run_clustering_and_postprocess(separated_audios, conf)
+            if not final_clusters: raise RuntimeError("Stage 4 (Clustering) failed.")
 
-        return {
-            "total_clusters": len(final_clusters),
-            "clusters": [{"speaker_id": k, "audio_files": v} for k, v in sorted(final_clusters.items())],
-            "workspace": self.workspace
-        }
+            return {
+                "total_clusters": len(final_clusters),
+                "clusters": [{"speaker_id": k, "audio_files": v} for k, v in sorted(final_clusters.items())],
+                "workspace": self.workspace
+            }
+        finally:
+            # Cleanup temporary files and directories
+            print("[INFO] Cleaning up temporary files...")
+            if os.path.exists(conf_path):
+                os.remove(conf_path)
+            
+            vad_dir = os.path.join(self.workspace, 'vad')
+            if os.path.exists(vad_dir):
+                shutil.rmtree(vad_dir)
+            
+            emb_dir = os.path.join(self.workspace, 'emb')
+            if os.path.exists(emb_dir):
+                shutil.rmtree(emb_dir)
+            print("[INFO] Cleanup complete.")

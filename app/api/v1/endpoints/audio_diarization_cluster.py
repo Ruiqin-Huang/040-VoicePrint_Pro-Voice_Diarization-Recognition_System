@@ -17,10 +17,7 @@ async def audio_diarization_cluster(request: AudioDiarizationClusterRequest):
     - **num_speakers_per_audio**: (可选) 每个音频文件中预期的说话人数量，默认为2。
     """
     try:
-        # 使用固定的共享工作区
-        workspace = "./workspace"
-        
-        service = DiarizationClusterService(workspace=workspace)
+        service = DiarizationClusterService()
         result = await service.run_pipeline(request.audio_files, request.num_speakers_per_audio)
         
         response_data = AudioDiarizationClusterResponse(**result)
