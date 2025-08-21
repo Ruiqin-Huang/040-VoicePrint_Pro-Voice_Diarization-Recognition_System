@@ -877,12 +877,14 @@ API响应使用JSON格式，包含以下字段：
 ```json
 {
   "audio_files": [
-    "/path/to/your/audio/new_audio_1.wav",
-    "/path/to/your/audio/new_audio_2.wav"
+    "./example/chinese/zh_4.wav",
+    "./example/chinese/zh_5.wav",
+    "./example/english/en2.wav",
+    "./example/russian/ru2.wav"
   ],
-  "num_speakers_per_audio": 1,
+  "num_speakers_per_audio": 2,
   "update_voiceprintlib": true,
-  "threshold": 0.65
+  "threshold": 0.15
 }
 ```
 
@@ -916,41 +918,146 @@ API响应使用JSON格式，包含以下字段：
 成功响应示例（更新了声纹库）：
 ```json
 {
-  "retcode": 200000,
-  "msg": "success",
-  "data": {
-    "identification_results": [
-      {
-        "source_segment": "dataset/audio/new_audio_1_speaker0.wav",
-        "identified_speaker": "speaker_0",
-        "is_new_speaker": false,
-        "min_distance": 0.2345,
-        "distances": {
-          "speaker_0": 0.2345,
-          "speaker_1": 0.8765
-        }
-      },
-      {
-        "source_segment": "dataset/audio/new_audio_2_speaker0.wav",
-        "identified_speaker": "unknown",
-        "is_new_speaker": true,
-        "min_distance": 0.7890,
-        "distances": {
-          "speaker_0": 0.9123,
-          "speaker_1": 0.7890
-        }
-      }
-    ],
-    "newly_registered_speakers": {
-      "speaker_2": [
-        "dataset/audio/new_audio_2_speaker0.wav"
-      ]
-    },
-    "updated_speakers": [
-      "speaker_0"
-    ],
-    "library_updated": true
-  }
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "identification_results": [
+            {
+                "source_segment": "audio_segmentation/zh_4_speaker0.wav",
+                "identified_speaker": "speaker_2",
+                "is_new_speaker": false,
+                "min_distance": 0.0883,
+                "distances": {
+                    "speaker_6": 0.5624,
+                    "speaker_0": 0.5873,
+                    "speaker_4": 0.8537,
+                    "speaker_5": 0.8312,
+                    "speaker_3": 0.8334,
+                    "speaker_1": 0.745,
+                    "speaker_2": 0.0883
+                }
+            },
+            {
+                "source_segment": "audio_segmentation/zh_4_speaker1.wav",
+                "identified_speaker": "unknown",
+                "is_new_speaker": true,
+                "min_distance": 0.213,
+                "distances": {
+                    "speaker_6": 0.6791,
+                    "speaker_0": 0.6198,
+                    "speaker_4": 0.9236,
+                    "speaker_5": 0.8334,
+                    "speaker_3": 0.8203,
+                    "speaker_1": 0.848,
+                    "speaker_2": 0.213
+                }
+            },
+            {
+                "source_segment": "audio_segmentation/zh_5_speaker0.wav",
+                "identified_speaker": "speaker_6",
+                "is_new_speaker": false,
+                "min_distance": 0.0,
+                "distances": {
+                    "speaker_6": 0.0,
+                    "speaker_0": 0.8221,
+                    "speaker_4": 0.918,
+                    "speaker_5": 0.8207,
+                    "speaker_3": 0.6714,
+                    "speaker_1": 0.8322,
+                    "speaker_2": 0.4021
+                }
+            },
+            {
+                "source_segment": "audio_segmentation/zh_5_speaker1.wav",
+                "identified_speaker": "speaker_2",
+                "is_new_speaker": false,
+                "min_distance": 0.0758,
+                "distances": {
+                    "speaker_6": 0.5099,
+                    "speaker_0": 0.5735,
+                    "speaker_4": 0.9506,
+                    "speaker_5": 0.8079,
+                    "speaker_3": 0.8812,
+                    "speaker_1": 0.7746,
+                    "speaker_2": 0.0758
+                }
+            },
+            {
+                "source_segment": "audio_segmentation/en2_speaker0.wav",
+                "identified_speaker": "speaker_5",
+                "is_new_speaker": false,
+                "min_distance": -0.0,
+                "distances": {
+                    "speaker_6": 0.8207,
+                    "speaker_0": 0.7534,
+                    "speaker_4": 0.7242,
+                    "speaker_5": -0.0,
+                    "speaker_3": 0.7406,
+                    "speaker_1": 0.6648,
+                    "speaker_2": 0.7896
+                }
+            },
+            {
+                "source_segment": "audio_segmentation/en2_speaker1.wav",
+                "identified_speaker": "speaker_0",
+                "is_new_speaker": false,
+                "min_distance": 0.0,
+                "distances": {
+                    "speaker_6": 0.8221,
+                    "speaker_0": 0.0,
+                    "speaker_4": 0.8653,
+                    "speaker_5": 0.7534,
+                    "speaker_3": 0.8112,
+                    "speaker_1": 0.8543,
+                    "speaker_2": 0.5527
+                }
+            },
+            {
+                "source_segment": "audio_segmentation/ru2_speaker0.wav",
+                "identified_speaker": "speaker_3",
+                "is_new_speaker": false,
+                "min_distance": 0.0,
+                "distances": {
+                    "speaker_6": 0.6714,
+                    "speaker_0": 0.8112,
+                    "speaker_4": 0.7726,
+                    "speaker_5": 0.7406,
+                    "speaker_3": 0.0,
+                    "speaker_1": 0.9416,
+                    "speaker_2": 0.7863
+                }
+            },
+            {
+                "source_segment": "audio_segmentation/ru2_speaker1.wav",
+                "identified_speaker": "speaker_4",
+                "is_new_speaker": false,
+                "min_distance": 0.0,
+                "distances": {
+                    "speaker_6": 0.918,
+                    "speaker_0": 0.8653,
+                    "speaker_4": 0.0,
+                    "speaker_5": 0.7242,
+                    "speaker_3": 0.7726,
+                    "speaker_1": 0.7991,
+                    "speaker_2": 0.8912
+                }
+            }
+        ],
+        "newly_registered_speakers": {
+            "speaker_7": [
+                "audio_segmentation/zh_4_speaker1.wav"
+            ]
+        },
+        "updated_speakers": [
+            "speaker_2",
+            "speaker_0",
+            "speaker_6",
+            "speaker_5",
+            "speaker_3",
+            "speaker_4"
+        ],
+        "library_updated": true
+    }
 }
 ```
 
