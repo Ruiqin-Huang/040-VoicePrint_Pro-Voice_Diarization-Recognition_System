@@ -80,6 +80,10 @@ cluster:
     pval: 0.0012
 """
     
+    MILVUS_HOST: str = "10.108.17.241"
+    MILVUS_PORT: str = "19530"
+    MILVUS_COLLECTION: str = "voiceprint_db"
+
     class Config:
         case_sensitive = True
         env_file = ".env"
