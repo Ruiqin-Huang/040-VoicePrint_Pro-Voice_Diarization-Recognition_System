@@ -1061,6 +1061,396 @@ API响应使用JSON格式，包含以下字段：
 }
 ```
 
+### 说话人声纹注册接口(milvus)
+
+#### 接口概述
+
+该API用于将指定人员的声纹注册到声纹库中。它接收一一对应的人员ID和音频文件列表，对每个音频文件进行预处理（VAD、分段、声纹特征提取），然后将提取到的192维声纹向量与人员ID、文件ID一同存入Milvus数据库。此接口为纯注册接口，不执行识别或比对操作。
+
+- **URL**: `/api/audio_registration`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 批量注册声纹数据，每个音频文件对应一个指定的人员ID。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+
+| 参数名 | 类型 | 必填 | 描述 |
+| --- | --- | --- | --- |
+| person_ids | Array[String] | 是 | 人员ID列表。其长度必须与 `audio_files` 列表的长度相等。 |
+| audio_files | Array[String] | 是 | 待注册的音频文件路径列表。每个文件中应只包含一个说话人的语音。 |
+| collection_name | String | 否 | 指定存入的Milvus集合名称。如果未提供，将使用服务器配置文件中的默认集合。 |
+
+请求体示例：
+```json
+{
+  "person_ids": [
+    "user_001",
+    "user_002",
+    "user_003",
+    "user_001",
+    "user_002",
+    "user_001"
+  ],
+  "audio_files": [
+    "./data/input/audio_registration/user_001/user_001_sample1.wav",
+    "./data/input/audio_registration/user_002/user_002_sample1.wav",
+    "./data/input/audio_registration/user_003/user_003_sample1.wav",
+    "./data/input/audio_registration/user_001/user_001_sample2.wav",
+    "./data/input/audio_registration/user_002/user_002_sample2.wav",
+    "./data/input/audio_registration/user_001/user_001_sample3.wav"
+  ],
+  "collection_name": "voiceprint_db_fortest"
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| retcode | Integer | 响应码，`200000`表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含注册结果的详细信息，失败时为 `null` |
+
+`data` 对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| collection_name | String | 数据被插入的目标集合的名称。 |
+| inserted_count | Integer | 本次请求成功插入到数据库的记录总数。 |
+| inserted_result | Array[Object] | 每条记录的详细信息，包括音频文件路径、音频对应的人员ID和插入时生成的主键ID。 |
+
+`inserted_result` 对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| audio_file | String | 输入的音频文件名。 |
+| person_id | String | 对应的人员ID。 |
+| id | String | 插入记录在Milvus中生成的主键ID。原为Integer格式，后转为String格式。 |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "collection_name": "voiceprint_db_fortest",
+        "inserted_count": 6,
+        "inserted_result": [
+            {
+                "audio_file": "user_001_sample1",
+                "person_id": "user_001",
+                "id": "460314951223788302"
+            },
+            {
+                "audio_file": "user_002_sample1",
+                "person_id": "user_002",
+                "id": "460314951223788303"
+            },
+            {
+                "audio_file": "user_003_sample1",
+                "person_id": "user_003",
+                "id": "460314951223788304"
+            },
+            {
+                "audio_file": "user_001_sample2",
+                "person_id": "user_001",
+                "id": "460314951223788305"
+            },
+            {
+                "audio_file": "user_002_sample2",
+                "person_id": "user_002",
+                "id": "460314951223788306"
+            },
+            {
+                "audio_file": "user_001_sample3",
+                "person_id": "user_001",
+                "id": "460314951223788307"
+            }
+        ]
+    }
+}
+```
+
+### 说话人切分及声纹比对接口(milvus)
+
+#### 接口概述
+
+该API用于对输入的音频文件进行自动化的主被叫切分，并将切分后的音频片段声纹与指定声纹库进行比对。它首先将每个输入音频切分为两个片段（主叫和被叫），然后为每个片段提取声纹特征。该特征会与目标声纹库中所有说话人的平均声纹进行余弦相似度比对，找出最相似的说话人。如果相似度超过预设阈值，则认为匹配成功，并将该片段的声纹补充注册到对应说话人的条目下。整个过程是只读比对在前，增量写入在后，确保了比对的准确性。
+
+- **URL**: `/api/diarization_comparison`
+- **方法**: POST
+- **请求格式**: application/json
+- **功能**: 自动化完成音频切分、声纹比对、结果识别和声纹库的增量更新。
+
+#### 请求参数
+
+请求体使用JSON格式，包含以下字段：
+
+| 参数名 | 类型 | 必填 | 描述 |
+| --- | --- | --- | --- |
+| audio_files | Array[String] | 是 | 待处理的音频文件绝对路径列表。 |
+| collection_name | String | 是 | 用于比对的目标Milvus集合名称。 |
+| accept_threshold | Float | 否 | 可接受的相似度阈值，取值范围为0到1。高于此阈值的匹配结果将被接受并用于更新声纹库。默认值为 `0.85`。 |
+
+请求体示例：
+```json
+{
+  "audio_files": [
+    "./data/input/diarization_comparison/conversation_01.wav",
+    "./data/input/diarization_comparison/conversation_02.wav",
+    "./data/input/diarization_comparison/conversation_03.wav"
+  ],
+  "collection_name": "voiceprint_db_fortest",
+  "accept_threshold": 0.80
+}
+```
+
+#### 响应格式
+
+API响应使用JSON格式，包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| retcode | Integer | 响应码，`200000`表示成功 |
+| msg | String | 响应消息，描述请求处理结果 |
+| data | Object | 响应数据，包含比对和入库的详细信息，失败时为 `null` |
+
+`data` 对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| collection_name | String | 参与比较的目标说话人声纹库，与输入参数一致。 |
+| comparison_results | Array[Object] | 每个切分音频片段的比对结果列表。 |
+| inserted_count | Integer | 本次请求中，通过相似度阈值验证并成功补充入库的声纹总数。 |
+| inserted_result | Array[Object] | 每条记录的详细信息，包括音频文件路径、识别得到的对应的人员ID和插入时生成的主键ID。 |
+
+`comparison_results` 数组中的每个对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| origin_audio_file | String | 原始输入音频文件名（不含路径）。|
+| segment_audio_file | String | 切分后的音频片段文件名（不含路径）。 |
+| calling_called | String | 该片段是主叫还是被叫，值为"calling" 或 "called"。 |
+| identified_speaker | String | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown_person'。 |
+| max_similarity | Float | 该片段与库中最相似说话人的余弦相似度。取值范围为[-1, 1]，当两个声纹完全一致时，值为 1，-1表示两段音频的说话人非常不相似，甚至特征方向完全相反。 |
+| is_accepted | Boolean | 指示该识别结果是否被接受（即相似度是否高于 `accept_threshold`）。 |
+| compare_result | Array[Object] | 该片段与库中所有说话人的相似度列表。 |
+
+`compare_result` 数组中的每个对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| person_id | String | 被比较的说话人ID。 |
+| similarity | Float | 该片段与该说话人的余弦相似度。 |
+
+
+`inserted_result` 对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| audio_file | String | 切分后的音频文件名。 |
+| person_id | String | 对应的人员ID。 |
+| id | String | 插入记录在Milvus中生成的主键ID。原为Integer格式，后转为String格式。 |
+
+成功响应示例：
+```json
+{
+    "retcode": 200000,
+    "msg": "success",
+    "data": {
+        "collection_name": "voiceprint_db_fortest",
+        "comparison_results": [
+            {
+                "origin_audio_file": "conversation_01.wav",
+                "segment_audio_file": "conversation_01_Calling.wav",
+                "calling_called": "calling",
+                "identified_speaker": "user_001",
+                "max_similarity": 0.809,
+                "is_accepted": true,
+                "compare_result": [
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.809
+                    },
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.2185
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": -0.139
+                    }
+                ]
+            },
+            {
+                "origin_audio_file": "conversation_01.wav",
+                "segment_audio_file": "conversation_01_Called.wav",
+                "calling_called": "called",
+                "identified_speaker": "unknown_person",
+                "max_similarity": 0.219,
+                "is_accepted": false,
+                "compare_result": [
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.219
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.1866
+                    },
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.1231
+                    }
+                ]
+            },
+            {
+                "origin_audio_file": "conversation_02.wav",
+                "segment_audio_file": "conversation_02_Calling.wav",
+                "calling_called": "calling",
+                "identified_speaker": "user_002",
+                "max_similarity": 0.8399,
+                "is_accepted": true,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.8399
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.2227
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.1897
+                    }
+                ]
+            },
+            {
+                "origin_audio_file": "conversation_02.wav",
+                "segment_audio_file": "conversation_02_Called.wav",
+                "calling_called": "called",
+                "identified_speaker": "unknown_person",
+                "max_similarity": 0.3027,
+                "is_accepted": false,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.3027
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.1109
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.0133
+                    }
+                ]
+            },
+            {
+                "origin_audio_file": "conversation_03.wav",
+                "segment_audio_file": "conversation_03_Calling.wav",
+                "calling_called": "calling",
+                "identified_speaker": "unknown_person",
+                "max_similarity": 0.7616,
+                "is_accepted": false,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.7616
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.2428
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.1328
+                    }
+                ]
+            },
+            {
+                "origin_audio_file": "conversation_03.wav",
+                "segment_audio_file": "conversation_03_Called.wav",
+                "calling_called": "called",
+                "identified_speaker": "unknown_person",
+                "max_similarity": 0.5359,
+                "is_accepted": false,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.5359
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.1432
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.12
+                    }
+                ]
+            }
+        ],
+        "inserted_count": 2,
+        "inserted_result": [
+            {
+                "audio_file": "conversation_01_Calling",
+                "person_id": "user_001",
+                "id": "460314951223788309"
+            },
+            {
+                "audio_file": "conversation_02_Calling",
+                "person_id": "user_002",
+                "id": "460314951223788310"
+            }
+        ]
+    }
+}
+```
+
+```bash
+
+插入前数据库（省略了embedding列）：
+╭────────────────────┬───────────┬──────────────────╮
+│ id                 │ person_id │ file_id          │
+├────────────────────┼───────────┼──────────────────┤
+│ 460314951223788302 │ user_001  │ user_001_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460314951223788303 │ user_002  │ user_002_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460314951223788304 │ user_003  │ user_003_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460314951223788305 │ user_001  │ user_001_sample2 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460314951223788306 │ user_002  │ user_002_sample2 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460314951223788307 │ user_001  │ user_001_sample3 │
+╰────────────────────┴───────────┴──────────────────╯
+
+插入后数据库（省略了embedding列）：
+╭────────────────────┬───────────┬─────────────────────────╮
+│ id                 │ person_id │ file_id                 │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788302 │ user_001  │ user_001_sample1        │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788303 │ user_002  │ user_002_sample1        │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788304 │ user_003  │ user_003_sample1        │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788305 │ user_001  │ user_001_sample2        │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788306 │ user_002  │ user_002_sample2        │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788307 │ user_001  │ user_001_sample3        │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788309 │ user_001  │ conversation_01_Calling │
+├────────────────────┼───────────┼─────────────────────────┤
+│ 460314951223788310 │ user_002  │ conversation_02_Calling │
+╰────────────────────┴───────────┴─────────────────────────╯
+
+```
+
+
 ### 语音识别接口
 
 实现语音转文字，根据上传的语音素材文件进行语音识别。

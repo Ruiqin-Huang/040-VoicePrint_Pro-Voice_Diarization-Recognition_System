@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     USE_GPU: bool = True
     GPU_ID: int = 0
     
+    # Milvus配置
+    MILVUS_COLLECTION = "voiceprint_db" # 默认插入的Milvus集合名称
+    
     # 说话人聚类配置（使用谱聚类）
     DIAR_CLUSTER_CONFIG_CONTENT: str = """
 fbank_dim: 80
