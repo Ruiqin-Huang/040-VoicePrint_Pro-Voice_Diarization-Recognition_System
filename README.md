@@ -1101,7 +1101,7 @@ API响应使用JSON格式，包含以下字段：
     "./data/input/audio_registration/user_002/user_002_sample2.wav",
     "./data/input/audio_registration/user_001/user_001_sample3.wav"
   ],
-  "collection_name": "voiceprint_db_fortest"
+  "collection_name": "voiceprint_db_for_test"
 }
 ```
 
@@ -1135,49 +1135,70 @@ API响应使用JSON格式，包含以下字段：
     "retcode": 200000,
     "msg": "success",
     "data": {
-        "collection_name": "voiceprint_db_fortest",
+        "collection_name": "voiceprint_db_for_test",
         "inserted_count": 6,
         "inserted_result": [
             {
                 "audio_file": "user_001_sample1",
                 "person_id": "user_001",
-                "id": "460314951223788302"
+                "id": "460355336497005910"
             },
             {
                 "audio_file": "user_002_sample1",
                 "person_id": "user_002",
-                "id": "460314951223788303"
+                "id": "460355336497005911"
             },
             {
                 "audio_file": "user_003_sample1",
                 "person_id": "user_003",
-                "id": "460314951223788304"
+                "id": "460355336497005912"
             },
             {
                 "audio_file": "user_001_sample2",
                 "person_id": "user_001",
-                "id": "460314951223788305"
+                "id": "460355336497005913"
             },
             {
                 "audio_file": "user_002_sample2",
                 "person_id": "user_002",
-                "id": "460314951223788306"
+                "id": "460355336497005914"
             },
             {
                 "audio_file": "user_001_sample3",
                 "person_id": "user_001",
-                "id": "460314951223788307"
+                "id": "460355336497005915"
             }
         ]
     }
 }
 ```
 
+```bash
+
+插入后数据库（省略了embedding列）：
+╭────────────────────┬───────────┬──────────────────╮
+│ id                 │ person_id │ file_id          │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005910 │ user_001  │ user_001_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005911 │ user_002  │ user_002_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005912 │ user_003  │ user_003_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005913 │ user_001  │ user_001_sample2 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005914 │ user_002  │ user_002_sample2 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005915 │ user_001  │ user_001_sample3 │
+╰────────────────────┴───────────┴──────────────────╯
+
+```
+
 ### 说话人切分及声纹比对接口(milvus)
 
 #### 接口概述
 
-该API用于对输入的音频文件进行自动化的主被叫切分，并将切分后的音频片段声纹与指定声纹库进行比对。它首先将每个输入音频切分为两个片段（主叫和被叫），然后为每个片段提取声纹特征。该特征会与目标声纹库中所有说话人的平均声纹进行余弦相似度比对，找出最相似的说话人。如果相似度超过预设阈值，则认为匹配成功，并将该片段的声纹补充注册到对应说话人的条目下。整个过程是只读比对在前，增量写入在后，确保了比对的准确性。
+该API用于对输入的音频文件进行自动化的主被叫切分，并将切分后的音频片段声纹与指定声纹库进行比对。它首先将每个输入音频切分为两个片段（主叫和被叫），然后为每个片段提取声纹特征。该特征会与目标声纹库中所有说话人的平均声纹进行余弦相似度比对，找出最相似的说话人。在完成切分后，同时展示了所有片段通过t-SNE降维后的聚类结果，返回了降维后所有片段的二维坐标和聚类编号。
 
 - **URL**: `/api/diarization_comparison`
 - **方法**: POST
@@ -1192,7 +1213,6 @@ API响应使用JSON格式，包含以下字段：
 | --- | --- | --- | --- |
 | audio_files | Array[String] | 是 | 待处理的音频文件绝对路径列表。 |
 | collection_name | String | 是 | 用于比对的目标Milvus集合名称。 |
-| accept_threshold | Float | 否 | 可接受的相似度阈值，取值范围为0到1。高于此阈值的匹配结果将被接受并用于更新声纹库。默认值为 `0.85`。 |
 
 请求体示例：
 ```json
@@ -1202,8 +1222,7 @@ API响应使用JSON格式，包含以下字段：
     "./data/input/diarization_comparison/conversation_02.wav",
     "./data/input/diarization_comparison/conversation_03.wav"
   ],
-  "collection_name": "voiceprint_db_fortest",
-  "accept_threshold": 0.80
+  "collection_name": "voiceprint_db_for_test"
 }
 ```
 
@@ -1222,8 +1241,7 @@ API响应使用JSON格式，包含以下字段：
 | --- | --- | --- |
 | collection_name | String | 参与比较的目标说话人声纹库，与输入参数一致。 |
 | comparison_results | Array[Object] | 每个切分音频片段的比对结果列表。 |
-| inserted_count | Integer | 本次请求中，通过相似度阈值验证并成功补充入库的声纹总数。 |
-| inserted_result | Array[Object] | 每条记录的详细信息，包括音频文件路径、识别得到的对应的人员ID和插入时生成的主键ID。 |
+| cluster_results | Array[Object] | 所有分割音频的聚类结果，包含2D坐标和聚类编号。 |
 
 `comparison_results` 数组中的每个对象包含以下字段：
 | 字段名 | 类型 | 说明 |
@@ -1231,9 +1249,9 @@ API响应使用JSON格式，包含以下字段：
 | origin_audio_file | String | 原始输入音频文件名（不含路径）。|
 | segment_audio_file | String | 切分后的音频片段文件名（不含路径）。 |
 | calling_called | String | 该片段是主叫还是被叫，值为"calling" 或 "called"。 |
-| identified_speaker | String | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown_person'。 |
-| max_similarity | Float | 该片段与库中最相似说话人的余弦相似度。取值范围为[-1, 1]，当两个声纹完全一致时，值为 1，-1表示两段音频的说话人非常不相似，甚至特征方向完全相反。 |
-| is_accepted | Boolean | 指示该识别结果是否被接受（即相似度是否高于 `accept_threshold`）。 |
+| cluster_id | Integer | 该音频片段所属的聚类ID。|
+| top_match_speaker | String | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown_person'。 |
+| top_match_similarity | Float | 该片段与库中最相似说话人的余弦相似度。取值范围为[-1, 1]，当两个声纹完全一致时，值为 1，-1表示两段音频的说话人非常不相似，甚至特征方向完全相反。 |
 | compare_result | Array[Object] | 该片段与库中所有说话人的相似度列表。 |
 
 `compare_result` 数组中的每个对象包含以下字段：
@@ -1242,13 +1260,13 @@ API响应使用JSON格式，包含以下字段：
 | person_id | String | 被比较的说话人ID。 |
 | similarity | Float | 该片段与该说话人的余弦相似度。 |
 
-
-`inserted_result` 对象包含以下字段：
+`cluster_results` 数组中的每个对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
-| audio_file | String | 切分后的音频文件名。 |
-| person_id | String | 对应的人员ID。 |
-| id | String | 插入记录在Milvus中生成的主键ID。原为Integer格式，后转为String格式。 |
+| segment_audio_file | String | 切分后的音频文件名。 |
+| x_coordinate | Float | t-SNE降维后的X坐标。 |
+| y_coordinate | Float | t-SNE降维后的Y坐标。 |
+| cluster_id | Integer | 聚类编号。 |
 
 成功响应示例：
 ```json
@@ -1256,15 +1274,15 @@ API响应使用JSON格式，包含以下字段：
     "retcode": 200000,
     "msg": "success",
     "data": {
-        "collection_name": "voiceprint_db_fortest",
+        "collection_name": "voiceprint_db_for_test",
         "comparison_results": [
             {
                 "origin_audio_file": "conversation_01.wav",
                 "segment_audio_file": "conversation_01_Calling.wav",
                 "calling_called": "calling",
-                "identified_speaker": "user_001",
-                "max_similarity": 0.809,
-                "is_accepted": true,
+                "cluster_id": 0,
+                "top_match_speaker": "user_001",
+                "top_match_similarity": 0.809,
                 "compare_result": [
                     {
                         "person_id": "user_001",
@@ -1284,9 +1302,9 @@ API响应使用JSON格式，包含以下字段：
                 "origin_audio_file": "conversation_01.wav",
                 "segment_audio_file": "conversation_01_Called.wav",
                 "calling_called": "called",
-                "identified_speaker": "unknown_person",
-                "max_similarity": 0.219,
-                "is_accepted": false,
+                "cluster_id": 0,
+                "top_match_speaker": "user_003",
+                "top_match_similarity": 0.219,
                 "compare_result": [
                     {
                         "person_id": "user_003",
@@ -1306,9 +1324,9 @@ API响应使用JSON格式，包含以下字段：
                 "origin_audio_file": "conversation_02.wav",
                 "segment_audio_file": "conversation_02_Calling.wav",
                 "calling_called": "calling",
-                "identified_speaker": "user_002",
-                "max_similarity": 0.8399,
-                "is_accepted": true,
+                "cluster_id": 0,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.8399,
                 "compare_result": [
                     {
                         "person_id": "user_002",
@@ -1328,9 +1346,9 @@ API响应使用JSON格式，包含以下字段：
                 "origin_audio_file": "conversation_02.wav",
                 "segment_audio_file": "conversation_02_Called.wav",
                 "calling_called": "called",
-                "identified_speaker": "unknown_person",
-                "max_similarity": 0.3027,
-                "is_accepted": false,
+                "cluster_id": 1,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.3027,
                 "compare_result": [
                     {
                         "person_id": "user_002",
@@ -1350,9 +1368,9 @@ API响应使用JSON格式，包含以下字段：
                 "origin_audio_file": "conversation_03.wav",
                 "segment_audio_file": "conversation_03_Calling.wav",
                 "calling_called": "calling",
-                "identified_speaker": "unknown_person",
-                "max_similarity": 0.7616,
-                "is_accepted": false,
+                "cluster_id": 1,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.7616,
                 "compare_result": [
                     {
                         "person_id": "user_002",
@@ -1372,9 +1390,9 @@ API响应使用JSON格式，包含以下字段：
                 "origin_audio_file": "conversation_03.wav",
                 "segment_audio_file": "conversation_03_Called.wav",
                 "calling_called": "called",
-                "identified_speaker": "unknown_person",
-                "max_similarity": 0.5359,
-                "is_accepted": false,
+                "cluster_id": 0,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.5359,
                 "compare_result": [
                     {
                         "person_id": "user_002",
@@ -1391,65 +1409,47 @@ API响应使用JSON格式，包含以下字段：
                 ]
             }
         ],
-        "inserted_count": 2,
-        "inserted_result": [
+        "cluster_results": [
             {
-                "audio_file": "conversation_01_Calling",
-                "person_id": "user_001",
-                "id": "460314951223788309"
+                "segment_audio_file": "conversation_01_Calling.wav",
+                "x_coordinate": -74.02848052978516,
+                "y_coordinate": -30.74161720275879,
+                "cluster_id": 0
             },
             {
-                "audio_file": "conversation_02_Calling",
-                "person_id": "user_002",
-                "id": "460314951223788310"
+                "segment_audio_file": "conversation_01_Called.wav",
+                "x_coordinate": -66.27128601074219,
+                "y_coordinate": -130.65916442871094,
+                "cluster_id": 0
+            },
+            {
+                "segment_audio_file": "conversation_02_Calling.wav",
+                "x_coordinate": -166.84124755859375,
+                "y_coordinate": -68.6406478881836,
+                "cluster_id": 0
+            },
+            {
+                "segment_audio_file": "conversation_02_Called.wav",
+                "x_coordinate": -21.36039161682129,
+                "y_coordinate": 54.65313720703125,
+                "cluster_id": 1
+            },
+            {
+                "segment_audio_file": "conversation_03_Calling.wav",
+                "x_coordinate": -139.06849670410156,
+                "y_coordinate": 45.866111755371094,
+                "cluster_id": 1
+            },
+            {
+                "segment_audio_file": "conversation_03_Called.wav",
+                "x_coordinate": 23.597810745239258,
+                "y_coordinate": -54.28296661376953,
+                "cluster_id": 0
             }
         ]
     }
 }
 ```
-
-```bash
-
-插入前数据库（省略了embedding列）：
-╭────────────────────┬───────────┬──────────────────╮
-│ id                 │ person_id │ file_id          │
-├────────────────────┼───────────┼──────────────────┤
-│ 460314951223788302 │ user_001  │ user_001_sample1 │
-├────────────────────┼───────────┼──────────────────┤
-│ 460314951223788303 │ user_002  │ user_002_sample1 │
-├────────────────────┼───────────┼──────────────────┤
-│ 460314951223788304 │ user_003  │ user_003_sample1 │
-├────────────────────┼───────────┼──────────────────┤
-│ 460314951223788305 │ user_001  │ user_001_sample2 │
-├────────────────────┼───────────┼──────────────────┤
-│ 460314951223788306 │ user_002  │ user_002_sample2 │
-├────────────────────┼───────────┼──────────────────┤
-│ 460314951223788307 │ user_001  │ user_001_sample3 │
-╰────────────────────┴───────────┴──────────────────╯
-
-插入后数据库（省略了embedding列）：
-╭────────────────────┬───────────┬─────────────────────────╮
-│ id                 │ person_id │ file_id                 │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788302 │ user_001  │ user_001_sample1        │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788303 │ user_002  │ user_002_sample1        │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788304 │ user_003  │ user_003_sample1        │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788305 │ user_001  │ user_001_sample2        │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788306 │ user_002  │ user_002_sample2        │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788307 │ user_001  │ user_001_sample3        │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788309 │ user_001  │ conversation_01_Calling │
-├────────────────────┼───────────┼─────────────────────────┤
-│ 460314951223788310 │ user_002  │ conversation_02_Calling │
-╰────────────────────┴───────────┴─────────────────────────╯
-
-```
-
 
 ### 语音识别接口
 

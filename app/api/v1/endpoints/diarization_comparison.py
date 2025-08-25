@@ -18,20 +18,17 @@ async def diarization_comparison(request: DiarizationComparisonRequest):
     """
     try:
         service = DiarizationComparisonService()
-        
         result = await service.run_pipeline(
             audio_files=request.audio_files,
-            collection_name=request.collection_name,
-            accept_threshold=request.accept_threshold
+            collection_name=request.collection_name
         )
-        
         response_data = DiarizationComparisonResponseData(**result)
         return ResponseResult(
             retcode=ResponseCode.SUCCESS,
             msg="success",
             data=response_data
         )
-
+        
     except ValueError as e:
         return ResponseResult(retcode=ResponseCode.INVALID_PARAM, msg=str(e))
     except FileNotFoundError as e:

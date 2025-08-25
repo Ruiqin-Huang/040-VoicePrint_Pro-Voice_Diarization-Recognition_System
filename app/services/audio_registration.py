@@ -28,9 +28,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 class AudioRegistrationService:
     def __init__(self):
-        # 创建一个唯一的临时工作区，用于存放中间文件
-        self.session_id = str(uuid.uuid4())
-        self.workspace = os.path.join(settings.OUTPUT_DIR, "audio_registration", self.session_id)
+        self.workspace = os.path.join(settings.OUTPUT_DIR, "audio_registration")
         self.vad_dir = os.path.join(self.workspace, "vad")  # 新增VAD目录
         self.emb_dir = os.path.join(self.workspace, "emb")  # 新增嵌入目录
         self.device = f'cuda:{settings.GPU_ID}' if settings.USE_GPU and torch.cuda.is_available() else 'cpu'

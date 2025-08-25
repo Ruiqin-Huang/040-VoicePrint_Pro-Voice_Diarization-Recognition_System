@@ -11,6 +11,7 @@ import librosa
 import soundfile as sf
 import torch
 from tqdm import tqdm
+from sklearn.manifold import TSNE
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
 from speakerlab.utils.config import build_config
@@ -18,14 +19,15 @@ from speakerlab.utils.builder import build
 from speakerlab.utils.fileio import load_audio
 from speakerlab.utils.utils import circle_pad
 
+from speakerlab.process.cluster import SpectralCluster
+
 from app.config.settings import settings
 from utils.io_suppressor import suppress_stdout_stderr
 from utils.Milvus import MilvusClient
 
 class DiarizationComparisonService:
     def __init__(self):
-        self.session_id = str(uuid.uuid4())
-        self.workspace = os.path.join(settings.OUTPUT_DIR, "diarization_comparison", self.session_id)
+        self.workspace = os.path.join(settings.OUTPUT_DIR, "diarization_comparison")
         self.audio_segmentation_dir = os.path.join(self.workspace, "audio_segmentation")
         self.vad_dir = os.path.join(self.workspace, "vad")
         self.emb_dir = os.path.join(self.workspace, "emb")
@@ -205,9 +207,8 @@ class DiarizationComparisonService:
         similarity = np.dot(emb1_norm, emb2_norm)
         return float(similarity)
 
-    async def run_pipeline(self, audio_files: List[str], collection_name: str, accept_threshold: float) -> Dict:
+    async def run_pipeline(self, audio_files: List[str], collection_name: str) -> Dict:
         comparison_results = []
-        embeddings_to_insert = []
         
         try:
             # 1. 主被叫切分
@@ -235,35 +236,55 @@ class DiarizationComparisonService:
             embedding_model.load_state_dict(torch.load(model_path, map_location='cpu'))
             embedding_model.eval().to(self.device)
 
-            # 4. 处理每个分割后的音频片段
-            print("++++++++ Stage 4: Processing Segments (VAD + Subsegments + Embeddings) ++++++++")
-            for segment_info in tqdm(segmented_files, desc="Processing Segments"):
+            # 4. 提取所有分割片段的声纹
+            print("++++++++ Stage 4: Extracting Embeddings for All Segments ++++++++")
+            all_segment_embeddings = []
+            valid_segments_info = []
+            for segment_info in tqdm(segmented_files, desc="Extracting Embeddings"):
                 segment_path = segment_info["segment_audio_path"]
-                
-                # 4.1 VAD检测
                 vad_data = self._run_vad_for_segment(segment_path)
                 if not vad_data:
                     print(f"[WARN] VAD failed for {segment_path}, skipping.")
                     continue
-                    
-                # 4.2 子片段分割
                 subseg_data = self._prepare_subsegments(segment_path, vad_data)
                 if not subseg_data:
                     print(f"[WARN] No valid subsegments for {segment_path}, skipping.")
                     continue
-                    
-                # 4.3 提取平均嵌入
                 segment_embedding = self._extract_avg_embedding(
                     segment_path, subseg_data, feature_extractor, embedding_model
                 )
-                
-                if segment_embedding is None:
+                if segment_embedding is not None:
+                    all_segment_embeddings.append(segment_embedding)
+                    valid_segments_info.append(segment_info)
+                else:
                     print(f"[WARN] Could not extract embedding for {segment_path}, skipping.")
-                    continue
 
-                # 5. 与声纹库比对
-                best_match_person = "unknown_person"
-                max_similarity = 0.0
+            if not all_segment_embeddings:
+                raise RuntimeError("未能从任何分割片段中提取有效的声纹特征。")
+
+            # 5. t-SNE降维和谱聚类
+            print("++++++++ Stage 5: Clustering Segments ++++++++")
+            embeddings_array = np.array(all_segment_embeddings)
+            tsne = TSNE(n_components=2, random_state=42, perplexity=min(5, len(embeddings_array)-1))
+            embeddings_2d = tsne.fit_transform(embeddings_array)
+            
+            cluster_model = build('cluster', conf)
+            cluster_labels = cluster_model(embeddings_2d)
+
+            cluster_results = [
+                {
+                    "segment_audio_file": info["segment_audio_file"],
+                    "x_coordinate": float(coords[0]),
+                    "y_coordinate": float(coords[1]),
+                    "cluster_id": int(label)
+                }
+                for info, coords, label in zip(valid_segments_info, embeddings_2d, cluster_labels)
+            ]
+
+            # 6. 声纹比对与结果组装
+            print("++++++++ Stage 6: Comparing Embeddings with Voiceprint Library ++++++++")
+            for i, segment_embedding in enumerate(tqdm(all_segment_embeddings, desc="Comparing Segments")):
+                segment_info = valid_segments_info[i]
                 full_compare_result = []
 
                 if voiceprint_library:
@@ -272,65 +293,31 @@ class DiarizationComparisonService:
                         for person_id, avg_emb in voiceprint_library.items()
                     }
                     full_compare_result = [{"person_id": p, "similarity": round(s, 4)} for p, s in similarities.items()]
-                    
                     if similarities:
-                        best_match_person = max(similarities, key=similarities.get)
-                        max_similarity = similarities[best_match_person]
-
-                is_accepted = max_similarity >= accept_threshold and best_match_person != "unknown_person"
+                        top_match_speaker = max(similarities, key=similarities.get)
+                        top_match_similarity = similarities[top_match_speaker]
+                    else:
+                        top_match_speaker = None
+                        top_match_similarity = None
+                else:
+                    top_match_speaker = None
+                    top_match_similarity = None
 
                 result_item = {
                     "origin_audio_file": segment_info["origin_audio_file"],
                     "segment_audio_file": segment_info["segment_audio_file"],
                     "calling_called": segment_info["calling_called"],
-                    "identified_speaker": best_match_person if is_accepted else "unknown_person",
-                    "max_similarity": round(max_similarity, 4),
-                    "is_accepted": is_accepted,
+                    "cluster_id": int(cluster_labels[i]),
+                    "top_match_speaker": top_match_speaker,
+                    "top_match_similarity": round(top_match_similarity, 4) if top_match_similarity is not None else None,
                     "compare_result": sorted(full_compare_result, key=lambda x: x['similarity'], reverse=True)
                 }
                 comparison_results.append(result_item)
 
-                # 6. 将通过验证的声纹入库
-                if is_accepted:
-                    embeddings_to_insert.append({
-                        "person_id": best_match_person,
-                        "file_id": os.path.splitext(os.path.basename(segment_info["segment_audio_file"]))[0],
-                        "embedding": segment_embedding.tolist()
-                    })
-
-            # 7. 将通过验证的声纹入库
-            print("++++++++ Stage 5: Inserting Accepted Embeddings ++++++++")
-            inserted_count = 0
-            inserted_person_ids = []
-            if embeddings_to_insert:
-                person_ids = [item['person_id'] for item in embeddings_to_insert]
-                file_ids = [item['file_id'] for item in embeddings_to_insert]
-                embeddings = [item['embedding'] for item in embeddings_to_insert]
-                
-                inserted_pks = mc.insert(
-                    collection_name=collection_name,
-                    person_ids=person_ids,
-                    file_ids=file_ids,
-                    embeddings=embeddings
-                )
-                if inserted_pks:
-                    inserted_count = len(inserted_pks)
-                    inserted_result = [
-                        {
-                            "audio_file": f"{file_id}",
-                            "person_id": person_id,
-                            "id": str(inserted_pk)
-                        }
-                        for file_id, person_id, inserted_pk in zip(file_ids, person_ids, inserted_pks)
-                    ]
-            
-            print(f"[INFO] Inserted {inserted_count} new embeddings into '{collection_name}'.")
-
             return {
                 "collection_name": collection_name,
                 "comparison_results": comparison_results,
-                "inserted_count": inserted_count,
-                "inserted_result": inserted_result
+                "cluster_results": cluster_results
             }
 
         finally:
