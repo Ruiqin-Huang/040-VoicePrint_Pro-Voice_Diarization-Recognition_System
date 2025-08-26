@@ -70,17 +70,6 @@ embedding_model:
   args:
     feat_dim: <fbank_dim>
     embedding_size: <embedding_size>
-
-cluster:
-  obj: speakerlab.process.cluster.CommonClustering 
-  args:
-    cluster_type: spectral
-    mer_cos: 0.85
-    min_num_spks: 1
-    max_num_spks: 200
-    min_cluster_size: 0
-    oracle_num: null
-    pval: 0.0012
 """
     
     MILVUS_HOST: str = "10.108.17.241"

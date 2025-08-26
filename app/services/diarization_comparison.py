@@ -12,14 +12,13 @@ import soundfile as sf
 import torch
 from tqdm import tqdm
 from sklearn.manifold import TSNE
+import hdbscan
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
 from speakerlab.utils.fileio import load_audio
 from speakerlab.utils.utils import circle_pad
-
-from speakerlab.process.cluster import SpectralCluster
 
 from app.config.settings import settings
 from utils.io_suppressor import suppress_stdout_stderr
@@ -265,11 +264,15 @@ class DiarizationComparisonService:
             # 5. t-SNE降维和谱聚类
             print("++++++++ Stage 5: Clustering Segments ++++++++")
             embeddings_array = np.array(all_segment_embeddings)
+            
             tsne = TSNE(n_components=2, random_state=42, perplexity=min(5, len(embeddings_array)-1))
             embeddings_2d = tsne.fit_transform(embeddings_array)
             
-            cluster_model = build('cluster', conf)
-            cluster_labels = cluster_model(embeddings_2d)
+            cluster_model = hdbscan.HDBSCAN(
+                min_cluster_size=2,
+                cluster_selection_method='leaf'
+            )
+            cluster_labels = cluster_model.fit_predict(embeddings_2d)
 
             cluster_results = [
                 {
@@ -280,6 +283,7 @@ class DiarizationComparisonService:
                 }
                 for info, coords, label in zip(valid_segments_info, embeddings_2d, cluster_labels)
             ]
+    
 
             # 6. 声纹比对与结果组装
             print("++++++++ Stage 6: Comparing Embeddings with Voiceprint Library ++++++++")
