@@ -259,20 +259,33 @@ class DiarizationComparisonService:
                     print(f"[WARN] Could not extract embedding for {segment_path}, skipping.")
 
             if not all_segment_embeddings:
-                raise RuntimeError("未能从任何分割片段中提取有效的声纹特征。")
-
+                raise RuntimeError("未能从任何分割片段中提取有效的声纹特征。")      
+            
             # 5. t-SNE降维和谱聚类
             print("++++++++ Stage 5: Clustering Segments ++++++++")
             embeddings_array = np.array(all_segment_embeddings)
-            
+
             tsne = TSNE(n_components=2, random_state=42, perplexity=min(5, len(embeddings_array)-1))
             embeddings_2d = tsne.fit_transform(embeddings_array)
-            
+
             cluster_model = hdbscan.HDBSCAN(
                 min_cluster_size=2,
                 cluster_selection_method='leaf'
             )
             cluster_labels = cluster_model.fit_predict(embeddings_2d)
+
+            # 重新映射聚类标签：将-1转换为新的独立类别
+            # 步骤1: 找到所有非噪声标签的最大值
+            max_label = np.max(cluster_labels[cluster_labels >= 0]) if np.any(cluster_labels >= 0) else -1
+            # 步骤2: 为每个噪声点分配新的唯一标签
+            new_labels = []
+            next_label = max_label + 1  # 新标签起始值
+            for label in cluster_labels:
+                if label == -1:
+                    new_labels.append(next_label)
+                    next_label += 1
+                else:
+                    new_labels.append(label)
 
             cluster_results = [
                 {
@@ -281,10 +294,9 @@ class DiarizationComparisonService:
                     "y_coordinate": float(coords[1]),
                     "cluster_id": int(label)
                 }
-                for info, coords, label in zip(valid_segments_info, embeddings_2d, cluster_labels)
+                for info, coords, label in zip(valid_segments_info, embeddings_2d, new_labels)
             ]
-    
-
+            
             # 6. 声纹比对与结果组装
             print("++++++++ Stage 6: Comparing Embeddings with Voiceprint Library ++++++++")
             for i, segment_embedding in enumerate(tqdm(all_segment_embeddings, desc="Comparing Segments")):
