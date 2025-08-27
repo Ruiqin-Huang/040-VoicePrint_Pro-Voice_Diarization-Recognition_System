@@ -323,7 +323,7 @@ class DiarizationComparisonService:
                     "origin_audio_file": segment_info["origin_audio_file"],
                     "segment_audio_file": segment_info["segment_audio_file"],
                     "calling_called": segment_info["calling_called"],
-                    "cluster_id": int(cluster_labels[i]),
+                    "cluster_id": int(new_labels[i]),  # 修改这里，使用new_labels
                     "top_match_speaker": top_match_speaker,
                     "top_match_similarity": round(top_match_similarity, 4) if top_match_similarity is not None else None,
                     "compare_result": sorted(full_compare_result, key=lambda x: x['similarity'], reverse=True)
