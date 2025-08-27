@@ -15,10 +15,10 @@ class SpeechRecognitionRequest(BaseModel):
 
 # 通话记录细节
 class RecognizedDetails(BaseModel):
-    start: str
-    end: str
+    start: float
+    end: float
     text: str
-    no_speech_prob: str
+    no_speech_prob: float
 
 # 一段通话记录
 class RecognizedFile(BaseModel):
