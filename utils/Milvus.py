@@ -1,5 +1,7 @@
 import pymilvus
 from datetime import datetime
+import numpy as np
+from typing import Optional, Dict
 from pymilvus import (
     connections,
     utility,
@@ -111,26 +113,117 @@ class MilvusClient:
         except Exception as e:
             print(f"Failed to create collection: {e}")
 
-    def insert(self, collection_name, person_ids, file_ids, embeddings):
+    def ensure_collection(self, collection_name: str, dim: int):
         """
-        插入数据（根据 FieldSchema 定义）
-        参数:
-            collection_name: 集合名称
-            data: 批量数据，格式为 [(person_id, file_id, embedding), ...]
+        确保集合存在、有索引并已加载。
+        """
+        # 检查集合是否存在，如果不存在则创建
+        if not utility.has_collection(collection_name):
+            print(f"[INFO] Collection '{collection_name}' not found. Creating new collection...")
+            fields = [
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+                FieldSchema(name="person_id", dtype=DataType.VARCHAR, max_length=64),
+                FieldSchema(name="file_id", dtype=DataType.VARCHAR, max_length=64),
+                FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=dim)
+            ]
+            schema = CollectionSchema(fields, f"'{collection_name}' collection")
+            collection = Collection(name=collection_name, schema=schema)
+            print(f"[INFO] Collection '{collection_name}' created.")
+        else:
+            collection = Collection(name=collection_name)
+            print(f"[INFO] Collection '{collection_name}' already exists.")
+
+        # 检查索引是否存在，如果不存在则创建
+        if not collection.has_index():
+            print(f"[INFO] Index not found for collection '{collection_name}'. Creating index...")
+            index_params = {
+                "metric_type": "L2",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 128}
+            }
+            collection.create_index(field_name="embedding", index_params=index_params)
+            print(f"[INFO] Index created successfully.")
+        else:
+            print(f"[INFO] Index already exists for collection '{collection_name}'.")
+        
+        # 加载集合
+        print(f"[INFO] Loading collection '{collection_name}'...")
+        collection.load()
+        print(f"[INFO] Collection '{collection_name}' loaded successfully.")
+
+    def get_person_avg_embedding(self, collection_name: str, person_id: str) -> Optional[np.ndarray]:
+        """
+        查询指定person_id的所有声纹向量，并返回其平均值。
         """
         try:
-            self.create_collection(collection_name)
-            self.collection = Collection(name=collection_name)
-            # data = [vectors]
+            collection = Collection(name=collection_name)
+            expr = f"person_id == '{person_id}'"
+            results = collection.query(expr=expr, output_fields=["embedding"])
+            
+            if not results:
+                print(f"[WARN] No embeddings found for person_id: {person_id}")
+                return None
+            
+            embeddings = [res['embedding'] for res in results]
+            avg_embedding = np.mean(embeddings, axis=0)
+            return avg_embedding
+        except Exception as e:
+            print(f"Failed to get average embedding for {person_id}: {e}")
+            return None
+
+    def get_all_person_avg_embeddings(self, collection_name: str) -> Dict[str, np.ndarray]:
+        """
+        查询集合中所有说话人的平均声纹向量。
+        返回一个字典，key为person_id，value为对应的192维平均声纹向量。
+        """
+        voiceprint_library = {}
+        try:
+            collection = Collection(name=collection_name)
+            
+            # 1. 获取所有唯一的person_id
+            # 注意：对于非常大的数据集，分页查询可能更高效
+            all_entities = collection.query(expr="person_id != ''", output_fields=["person_id"])
+            unique_person_ids = sorted(list(set(entity['person_id'] for entity in all_entities)))
+            
+            if not unique_person_ids:
+                print(f"[INFO] Collection '{collection_name}' is empty or contains no person_ids.")
+                return voiceprint_library
+
+            print(f"[INFO] Found {len(unique_person_ids)} unique persons in '{collection_name}'. Calculating average embeddings...")
+
+            # 2. 为每个person_id计算平均声纹
+            for person_id in unique_person_ids:
+                avg_embedding = self.get_person_avg_embedding(collection_name, person_id)
+                if avg_embedding is not None:
+                    voiceprint_library[person_id] = avg_embedding
+            
+            return voiceprint_library
+        except Exception as e:
+            print(f"Failed to get all person average embeddings: {e}")
+            return voiceprint_library
+
+    def insert(self, collection_name, person_ids, file_ids, embeddings):
+        """
+        插入数据。
+        """
+        try:
+            # 获取集合对象
+            collection = Collection(name=collection_name)
+            
+            # 准备数据
             data = [person_ids, file_ids, embeddings]
-            mr = self.collection.insert(data)
-            ids = mr.primary_keys
-            self.collection.load()
-            # collection加载到内存中
-            print(f"Insert vectors to Milvus in collection: {collection_name} with {len(embeddings)} rows")
-            return ids
+            
+            # 插入数据
+            mr = collection.insert(data)
+            
+            # Flush to make data visible
+            collection.flush()
+            
+            print(f"Insert vectors to Milvus in collection: {collection_name} with {len(embeddings)} rows. Flushed.")
+            return mr.primary_keys
         except Exception as e:
             print(f"Failed to insert data into Milvus: {e}")
+            return None
 
     def create_index(self, collection_name, field_name):
         """

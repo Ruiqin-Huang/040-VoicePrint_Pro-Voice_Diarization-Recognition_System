@@ -757,16 +757,16 @@ segment_files数组中的每个对象包含以下字段：
 }
 ```
 
-### 说话人分割及声纹聚类接口
+### 说话人声纹注册接口(milvus)
 
 #### 接口概述
 
-该API对输入的多个音频文件执行说话人分割，然后对分割出的所有音频片段进行声纹聚类，最终识别出不同的说话人并构建声纹库。
+该API用于将指定人员的声纹注册到声纹库中。它接收一一对应的人员ID和音频文件列表，对每个音频文件进行预处理（VAD、分段、声纹特征提取），然后将提取到的192维声纹向量与人员ID、文件ID一同存入Milvus数据库。此接口为纯注册接口，不执行识别或比对操作。
 
-- **URL**: `/api/audio_diarization_cluster`
+- **URL**: `/api/audio_registration`
 - **方法**: POST
 - **请求格式**: application/json
-- **功能**: 接收一个音频文件路径列表，对每个文件进行说话人分割，然后对所有分割后的片段进行聚类，返回聚类结果和工作区路径。
+- **功能**: 批量注册声纹数据，每个音频文件对应一个指定的人员ID。
 
 #### 请求参数
 
@@ -774,18 +774,30 @@ segment_files数组中的每个对象包含以下字段：
 
 | 参数名 | 类型 | 必填 | 描述 |
 | --- | --- | --- | --- |
-| audio_files | Array[String] | 是 | 待处理的音频文件绝对路径列表。 |
-| num_speakers_per_audio | Integer | 否 | 每个输入音频文件中预期的说话人数量。默认值为 `2`。 |
+| person_ids | Array[String] | 是 | 人员ID列表。其长度必须与 `audio_files` 列表的长度相等。 |
+| audio_files | Array[String] | 是 | 待注册的音频文件路径列表。每个文件中应只包含一个说话人的语音。 |
+| collection_name | String | 否 | 指定存入的Milvus集合名称。如果未提供，将使用服务器配置文件中的默认集合。 |
 
 请求体示例：
 ```json
 {
-  "audio_files": [
-    "./example/chinese/zh_1.wav",
-    "./example/chinese/zh_2.wav",
-    "./example/chinese/zh_3.wav"
+  "person_ids": [
+    "user_001",
+    "user_002",
+    "user_003",
+    "user_001",
+    "user_002",
+    "user_001"
   ],
-  "num_speakers_per_audio": 2
+  "audio_files": [
+    "./data/input/audio_registration/user_001/user_001_sample1.wav",
+    "./data/input/audio_registration/user_002/user_002_sample1.wav",
+    "./data/input/audio_registration/user_003/user_003_sample1.wav",
+    "./data/input/audio_registration/user_001/user_001_sample2.wav",
+    "./data/input/audio_registration/user_002/user_002_sample2.wav",
+    "./data/input/audio_registration/user_001/user_001_sample3.wav"
+  ],
+  "collection_name": "voiceprint_db_for_test"
 }
 ```
 
@@ -797,20 +809,21 @@ API响应使用JSON格式，包含以下字段：
 | --- | --- | --- |
 | retcode | Integer | 响应码，`200000`表示成功 |
 | msg | String | 响应消息，描述请求处理结果 |
-| data | Object | 响应数据，包含聚类结果，失败时为 `null` |
+| data | Object | 响应数据，包含注册结果的详细信息，失败时为 `null` |
 
 `data` 对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
-| total_clusters | Integer | 最终聚类出的独立说话人总数。 |
-| clusters | Array[Object] | 包含每个说话人聚类信息的列表。 |
-| workspace | String | 本次任务的工作目录绝对路径，所有中间文件（分割音频、VAD结果、嵌入向量）和最终结果（声纹库）都保存在此。 |
+| collection_name | String | 数据被插入的目标集合的名称。 |
+| inserted_count | Integer | 本次请求成功插入到数据库的记录总数。 |
+| inserted_result | Array[Object] | 每条记录的详细信息，包括音频文件路径、音频对应的人员ID和插入时生成的主键ID。 |
 
-`clusters` 数组中的每个对象包含以下字段：
+`inserted_result` 对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
-| speaker_id | String | 聚类后分配的说话人ID，例如 "speaker_0"。 |
-| audio_files | Array[String] | 属于该说话人的所有音频片段的**相对路径**（相对于工作区路径）。 |
+| audio_file | String | 输入的音频文件名。 |
+| person_id | String | 对应的人员ID。 |
+| id | String | 插入记录在Milvus中生成的主键ID。原为Integer格式，后转为String格式。 |
 
 成功响应示例：
 ```json
@@ -818,49 +831,75 @@ API响应使用JSON格式，包含以下字段：
     "retcode": 200000,
     "msg": "success",
     "data": {
-        "total_clusters": 2,
-        "clusters": [
+        "collection_name": "voiceprint_db_for_test",
+        "inserted_count": 6,
+        "inserted_result": [
             {
-                "speaker_id": "speaker_0",
-                "audio_files": [
-                    "dataset/audio/zh_1_speaker0.wav",
-                    "dataset/audio/zh_1_speaker1.wav",
-                    "dataset/audio/zh_3_speaker1.wav"
-                ]
+                "audio_file": "user_001_sample1",
+                "person_id": "user_001",
+                "id": "460355336497005910"
             },
             {
-                "speaker_id": "speaker_1",
-                "audio_files": [
-                    "dataset/audio/zh_2_speaker0.wav",
-                    "dataset/audio/zh_2_speaker1.wav",
-                    "dataset/audio/zh_3_speaker0.wav"
-                ]
+                "audio_file": "user_002_sample1",
+                "person_id": "user_002",
+                "id": "460355336497005911"
+            },
+            {
+                "audio_file": "user_003_sample1",
+                "person_id": "user_003",
+                "id": "460355336497005912"
+            },
+            {
+                "audio_file": "user_001_sample2",
+                "person_id": "user_001",
+                "id": "460355336497005913"
+            },
+            {
+                "audio_file": "user_002_sample2",
+                "person_id": "user_002",
+                "id": "460355336497005914"
+            },
+            {
+                "audio_file": "user_001_sample3",
+                "person_id": "user_001",
+                "id": "460355336497005915"
             }
-        ],
-        "workspace": "/home/hrq/DHG-Workspace/040/040-VoicePrint_Pro-Voice_Diarization-Recognition_System/workspace"
+        ]
     }
 }
 ```
 
-失败响应示例（文件未找到）：
-```json
-{
-    "retcode": 100000,
-    "msg": "Input audio file not found: /path/to/non_existent_file.wav",
-    "data": null
-}
+```bash
+
+插入后数据库（省略了embedding列）：
+╭────────────────────┬───────────┬──────────────────╮
+│ id                 │ person_id │ file_id          │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005910 │ user_001  │ user_001_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005911 │ user_002  │ user_002_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005912 │ user_003  │ user_003_sample1 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005913 │ user_001  │ user_001_sample2 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005914 │ user_002  │ user_002_sample2 │
+├────────────────────┼───────────┼──────────────────┤
+│ 460355336497005915 │ user_001  │ user_001_sample3 │
+╰────────────────────┴───────────┴──────────────────╯
+
 ```
 
-### 说话人声纹识别及声纹注册接口
+### 说话人切分及声纹比对接口(milvus)
 
 #### 接口概述
 
-该API对输入的音频文件进行预处理（分割、VAD、声纹提取），然后与现有声纹库进行比对，以识别说话人身份。API还支持根据识别结果动态更新声纹库，包括注册新说话人和更新已有说话人的声纹。
+该API用于对输入的音频文件进行自动化的主被叫切分，并将切分后的音频片段声纹与指定声纹库进行比对。它首先将每个输入音频切分为两个片段（主叫和被叫），然后为每个片段提取声纹特征。该特征会与目标声纹库中所有说话人的平均声纹进行余弦相似度比对，找出最相似的说话人。在完成切分后，同时展示了所有片段通过t-SNE降维后的聚类结果，返回了降维后所有片段的二维坐标和聚类编号。先切分，再降维，再聚类，聚类结果基于降维后的结果。
 
-- **URL**: `/api/audio_identification_registration`
+- **URL**: `/api/diarization_comparison`
 - **方法**: POST
 - **请求格式**: application/json
-- **功能**: 接收音频文件列表，识别每个音频片段的说话人，并可选择性地更新全局声纹库。
+- **功能**: 自动化完成音频切分、声纹比对、结果识别和声纹库的增量更新。
 
 #### 请求参数
 
@@ -869,22 +908,17 @@ API响应使用JSON格式，包含以下字段：
 | 参数名 | 类型 | 必填 | 描述 |
 | --- | --- | --- | --- |
 | audio_files | Array[String] | 是 | 待处理的音频文件绝对路径列表。 |
-| num_speakers_per_audio | Integer | 否 | 每个输入音频文件中预期的说话人数量。默认值为 `2`。 |
-| update_voiceprintlib | Boolean | 否 | 是否更新声纹库。`true` 表示将新识别的片段注册或更新到库中；`false` 表示仅返回识别结果，不修改声纹库。默认值为 `false`。 |
-| threshold | Float | 否 | 声纹识别的余弦距离阈值。当一个音频片段与库中某个声纹的距离小于等于此阈值时，被认为是同一个人。默认值为 `0.65`。 |
+| collection_name | String | 是 | 用于比对的目标Milvus集合名称。 |
 
 请求体示例：
 ```json
 {
   "audio_files": [
-    "./example/chinese/zh_4.wav",
-    "./example/chinese/zh_5.wav",
-    "./example/english/en2.wav",
-    "./example/russian/ru2.wav"
+    "./data/input/diarization_comparison/conversation_01.wav",
+    "./data/input/diarization_comparison/conversation_02.wav",
+    "./data/input/diarization_comparison/conversation_03.wav"
   ],
-  "num_speakers_per_audio": 2,
-  "update_voiceprintlib": true,
-  "threshold": 0.15
+  "collection_name": "voiceprint_db_for_test"
 }
 ```
 
@@ -896,167 +930,219 @@ API响应使用JSON格式，包含以下字段：
 | --- | --- | --- |
 | retcode | Integer | 响应码，`200000`表示成功 |
 | msg | String | 响应消息，描述请求处理结果 |
-| data | Object | 响应数据，包含识别和注册的详细结果，失败时为 `null` |
+| data | Object | 响应数据，包含比对和入库的详细信息，失败时为 `null` |
 
 `data` 对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
-| identification_results | Array[Object] | 每个输入音频片段的详细识别结果列表。 |
-| newly_registered_speakers | Object | (仅当`update_voiceprintlib`为true时) 本次任务新注册的说话人及其音频片段。键为新说话人ID，值为其音频片段列表。 |
-| updated_speakers | Array[String] | (仅当`update_voiceprintlib`为true时) 本次任务中声纹被更新的已有说话人ID列表。 |
-| library_updated | Boolean | 指示本次请求是否对声纹库进行了修改。 |
+| collection_name | String | 参与比较的目标说话人声纹库，与输入参数一致。 |
+| comparison_results | Array[Object] | 每个切分音频片段的比对结果列表。 |
+| cluster_results | Array[Object] | 所有分割音频的聚类结果，包含2D坐标和聚类编号。 |
 
-`identification_results` 数组中的每个对象包含以下字段：
+`comparison_results` 数组中的每个对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
-| source_segment | String | 用于识别的音频片段的相对路径。 |
-| identified_speaker | String | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown'。 |
-| is_new_speaker | Boolean | 是否被判定为新说话人（即与所有库中声纹的距离都大于阈值）。 |
-| min_distance | Float | 该片段与库中最相似说话人的余弦距离。如果库为空，则为 `null`。 |
-| distances | Object | 该片段与库中所有说话人的距离映射。 |
+| origin_audio_file | String | 原始输入音频文件名（不含路径）。|
+| segment_audio_file | String | 切分后的音频片段文件名（不含路径）。 |
+| calling_called | String | 该片段是主叫还是被叫，值为"calling" 或 "called"。 |
+| cluster_id | Integer | 该音频片段所属的聚类ID。|
+| top_match_speaker | String | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown_person'。 |
+| top_match_similarity | Float | 该片段与库中最相似说话人的余弦相似度。取值范围为[-1, 1]，当两个声纹完全一致时，值为 1，-1表示两段音频的说话人非常不相似，甚至特征方向完全相反。 |
+| compare_result | Array[Object] | 该片段与库中所有说话人的相似度列表。 |
 
-成功响应示例（更新了声纹库）：
+`compare_result` 数组中的每个对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| person_id | String | 被比较的说话人ID。 |
+| similarity | Float | 该片段与该说话人的余弦相似度。 |
+
+`cluster_results` 数组中的每个对象包含以下字段：
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| segment_audio_file | String | 切分后的音频文件名。 |
+| x_coordinate | Float | t-SNE降维后的X坐标。 |
+| y_coordinate | Float | t-SNE降维后的Y坐标。 |
+| cluster_id | Integer | 聚类编号。 |
+
+成功响应示例：
 ```json
 {
     "retcode": 200000,
     "msg": "success",
     "data": {
-        "identification_results": [
+        "collection_name": "voiceprint_db_for_test",
+        "comparison_results": [
             {
-                "source_segment": "audio_segmentation/zh_4_speaker0.wav",
-                "identified_speaker": "speaker_2",
-                "is_new_speaker": false,
-                "min_distance": 0.0883,
-                "distances": {
-                    "speaker_6": 0.5624,
-                    "speaker_0": 0.5873,
-                    "speaker_4": 0.8537,
-                    "speaker_5": 0.8312,
-                    "speaker_3": 0.8334,
-                    "speaker_1": 0.745,
-                    "speaker_2": 0.0883
-                }
+                "origin_audio_file": "conversation_01.wav",
+                "segment_audio_file": "conversation_01_Calling.wav",
+                "calling_called": "calling",
+                "cluster_id": 0,
+                "top_match_speaker": "user_001",
+                "top_match_similarity": 0.809,
+                "compare_result": [
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.809
+                    },
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.2185
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": -0.139
+                    }
+                ]
             },
             {
-                "source_segment": "audio_segmentation/zh_4_speaker1.wav",
-                "identified_speaker": "unknown",
-                "is_new_speaker": true,
-                "min_distance": 0.213,
-                "distances": {
-                    "speaker_6": 0.6791,
-                    "speaker_0": 0.6198,
-                    "speaker_4": 0.9236,
-                    "speaker_5": 0.8334,
-                    "speaker_3": 0.8203,
-                    "speaker_1": 0.848,
-                    "speaker_2": 0.213
-                }
+                "origin_audio_file": "conversation_01.wav",
+                "segment_audio_file": "conversation_01_Called.wav",
+                "calling_called": "called",
+                "cluster_id": 0,
+                "top_match_speaker": "user_003",
+                "top_match_similarity": 0.219,
+                "compare_result": [
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.219
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.1866
+                    },
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.1231
+                    }
+                ]
             },
             {
-                "source_segment": "audio_segmentation/zh_5_speaker0.wav",
-                "identified_speaker": "speaker_6",
-                "is_new_speaker": false,
-                "min_distance": 0.0,
-                "distances": {
-                    "speaker_6": 0.0,
-                    "speaker_0": 0.8221,
-                    "speaker_4": 0.918,
-                    "speaker_5": 0.8207,
-                    "speaker_3": 0.6714,
-                    "speaker_1": 0.8322,
-                    "speaker_2": 0.4021
-                }
+                "origin_audio_file": "conversation_02.wav",
+                "segment_audio_file": "conversation_02_Calling.wav",
+                "calling_called": "calling",
+                "cluster_id": 0,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.8399,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.8399
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.2227
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.1897
+                    }
+                ]
             },
             {
-                "source_segment": "audio_segmentation/zh_5_speaker1.wav",
-                "identified_speaker": "speaker_2",
-                "is_new_speaker": false,
-                "min_distance": 0.0758,
-                "distances": {
-                    "speaker_6": 0.5099,
-                    "speaker_0": 0.5735,
-                    "speaker_4": 0.9506,
-                    "speaker_5": 0.8079,
-                    "speaker_3": 0.8812,
-                    "speaker_1": 0.7746,
-                    "speaker_2": 0.0758
-                }
+                "origin_audio_file": "conversation_02.wav",
+                "segment_audio_file": "conversation_02_Called.wav",
+                "calling_called": "called",
+                "cluster_id": 1,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.3027,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.3027
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.1109
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.0133
+                    }
+                ]
             },
             {
-                "source_segment": "audio_segmentation/en2_speaker0.wav",
-                "identified_speaker": "speaker_5",
-                "is_new_speaker": false,
-                "min_distance": -0.0,
-                "distances": {
-                    "speaker_6": 0.8207,
-                    "speaker_0": 0.7534,
-                    "speaker_4": 0.7242,
-                    "speaker_5": -0.0,
-                    "speaker_3": 0.7406,
-                    "speaker_1": 0.6648,
-                    "speaker_2": 0.7896
-                }
+                "origin_audio_file": "conversation_03.wav",
+                "segment_audio_file": "conversation_03_Calling.wav",
+                "calling_called": "calling",
+                "cluster_id": 1,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.7616,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.7616
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.2428
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.1328
+                    }
+                ]
             },
             {
-                "source_segment": "audio_segmentation/en2_speaker1.wav",
-                "identified_speaker": "speaker_0",
-                "is_new_speaker": false,
-                "min_distance": 0.0,
-                "distances": {
-                    "speaker_6": 0.8221,
-                    "speaker_0": 0.0,
-                    "speaker_4": 0.8653,
-                    "speaker_5": 0.7534,
-                    "speaker_3": 0.8112,
-                    "speaker_1": 0.8543,
-                    "speaker_2": 0.5527
-                }
-            },
-            {
-                "source_segment": "audio_segmentation/ru2_speaker0.wav",
-                "identified_speaker": "speaker_3",
-                "is_new_speaker": false,
-                "min_distance": 0.0,
-                "distances": {
-                    "speaker_6": 0.6714,
-                    "speaker_0": 0.8112,
-                    "speaker_4": 0.7726,
-                    "speaker_5": 0.7406,
-                    "speaker_3": 0.0,
-                    "speaker_1": 0.9416,
-                    "speaker_2": 0.7863
-                }
-            },
-            {
-                "source_segment": "audio_segmentation/ru2_speaker1.wav",
-                "identified_speaker": "speaker_4",
-                "is_new_speaker": false,
-                "min_distance": 0.0,
-                "distances": {
-                    "speaker_6": 0.918,
-                    "speaker_0": 0.8653,
-                    "speaker_4": 0.0,
-                    "speaker_5": 0.7242,
-                    "speaker_3": 0.7726,
-                    "speaker_1": 0.7991,
-                    "speaker_2": 0.8912
-                }
+                "origin_audio_file": "conversation_03.wav",
+                "segment_audio_file": "conversation_03_Called.wav",
+                "calling_called": "called",
+                "cluster_id": 0,
+                "top_match_speaker": "user_002",
+                "top_match_similarity": 0.5359,
+                "compare_result": [
+                    {
+                        "person_id": "user_002",
+                        "similarity": 0.5359
+                    },
+                    {
+                        "person_id": "user_001",
+                        "similarity": 0.1432
+                    },
+                    {
+                        "person_id": "user_003",
+                        "similarity": 0.12
+                    }
+                ]
             }
         ],
-        "newly_registered_speakers": {
-            "speaker_7": [
-                "audio_segmentation/zh_4_speaker1.wav"
-            ]
-        },
-        "updated_speakers": [
-            "speaker_2",
-            "speaker_0",
-            "speaker_6",
-            "speaker_5",
-            "speaker_3",
-            "speaker_4"
-        ],
-        "library_updated": true
+        "cluster_results": [
+            {
+                "segment_audio_file": "conversation_01_Calling.wav",
+                "x_coordinate": -74.02848052978516,
+                "y_coordinate": -30.74161720275879,
+                "cluster_id": 0
+            },
+            {
+                "segment_audio_file": "conversation_01_Called.wav",
+                "x_coordinate": -66.27128601074219,
+                "y_coordinate": -130.65916442871094,
+                "cluster_id": 0
+            },
+            {
+                "segment_audio_file": "conversation_02_Calling.wav",
+                "x_coordinate": -166.84124755859375,
+                "y_coordinate": -68.6406478881836,
+                "cluster_id": 0
+            },
+            {
+                "segment_audio_file": "conversation_02_Called.wav",
+                "x_coordinate": -21.36039161682129,
+                "y_coordinate": 54.65313720703125,
+                "cluster_id": 1
+            },
+            {
+                "segment_audio_file": "conversation_03_Calling.wav",
+                "x_coordinate": -139.06849670410156,
+                "y_coordinate": 45.866111755371094,
+                "cluster_id": 1
+            },
+            {
+                "segment_audio_file": "conversation_03_Called.wav",
+                "x_coordinate": 23.597810745239258,
+                "y_coordinate": -54.28296661376953,
+                "cluster_id": 0
+            }
+        ]
     }
 }
 ```
