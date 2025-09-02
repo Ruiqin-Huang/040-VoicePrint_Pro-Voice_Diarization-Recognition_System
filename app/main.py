@@ -8,6 +8,10 @@ from app.api.v1.router import api_router
 from app.config.settings import settings
 from app.config.path_mapper import PathMapper
 
+from contextlib import asynccontextmanager
+from app.llm import llm_client
+from app.api.v1.router import api_router
+
 def auto_detect_mappings() -> tuple:
     """自动识别输入输出路径映射"""
     host_input = os.getenv('HOST_INPUT_PATH')
@@ -15,10 +19,24 @@ def auto_detect_mappings() -> tuple:
     
     return host_input, host_output
 
+async def lifespan(app: FastAPI):
+    """
+    应用生命周期管理，在启动时预加载模型。
+    """
+    print(f"Application starting in '{settings.llm_mode}' mode.")
+    if settings.llm_mode == 'local_hf':
+        print("Pre-loading local Hugging Face model...")
+        llm_client.get_local_hf_pipeline() # 显式调用HF pipeline加载
+        print("Model loaded.")
+    yield
+    print("Application shutting down.")
+
+
 app = FastAPI(
     title="VoicePrintPro_API",
     description="提供语音分割和语音识别功能的API服务",
     version="1.0.0",
+    lifespan=lifespan
 )
 
 # # 自动初始化PathMapper

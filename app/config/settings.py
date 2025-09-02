@@ -1,6 +1,7 @@
 import os
 # from pydantic import BaseSettings
 from pydantic_settings import BaseSettings
+from typing import Literal, Optional
 
 class Settings(BaseSettings):
     # 应用基本配置
@@ -71,6 +72,10 @@ embedding_model:
     feat_dim: <fbank_dim>
     embedding_size: <embedding_size>
 """
+    
+    llm_mode: Literal['local_hf'] = 'local_hf'
+    llm_hf_path: Optional[str] = "./pretrained_models/qwen1.5-7b-chat-hf" # 本地huggingface格式模型目录路径
+    llm_device: str = "auto" # 'auto', 'cpu', 'cuda', 'cuda:0' 等，让transformers自动选择设备
     
     MILVUS_HOST: str = "10.108.17.241"
     MILVUS_PORT: str = "19530"
