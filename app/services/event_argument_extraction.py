@@ -1,13 +1,15 @@
 import torch
 from typing import List, Dict, Optional
+import asyncio
 
 # 复用实体抽取服务中已加载的模型和分词器
 from app.services.entity_extraction import model, tokenizer
+from app.models.event_argument_extraction import EventInfo
 
 DEFAULT_ARGUMENT_TYPES = ['主体', '客体', '时间', '地点', '时态']
 GEN_TOK = '[GEN]'
 
-def _parse_result(result_str: str, event_type: str) -> Dict[str, str]:
+def _parse_result(result_str: str, event_type: str) -> Dict[str, any]:
     """
     将模型输出的字符串解析为字典，并格式化首个键。
     """
@@ -38,9 +40,9 @@ def _parse_result(result_str: str, event_type: str) -> Dict[str, str]:
                 result["arguments"].append(argument)
     return result
 
-async def process_event_argument_extraction(text: str, event_type: str, argument_types: Optional[List[str]] = None) -> Dict[str, str]:
+async def _extract_single_event(text: str, event_type: str, argument_types: Optional[List[str]] = None) -> Dict[str, any]:
     """
-    执行事件论元抽取
+    执行单个事件论元抽取
     :param text: 待抽取的文本
     :param event_type: 目标事件类型
     :param argument_types: 自定义的论元类型列表
@@ -65,4 +67,20 @@ async def process_event_argument_extraction(text: str, event_type: str, argument
     response_ids = outputs[0][input_ids_len:]
     response = tokenizer.decode(response_ids, skip_special_tokens=True)
     
-    return _parse_result(response, event_type)
+    parsed_result = _parse_result(response, event_type)
+    parsed_result["argument_types"] = argument_types
+    return parsed_result
+
+async def process_multi_event_argument_extraction(text: str, events_info: List[EventInfo]) -> List[Dict[str, any]]:
+    """
+    并行执行多个事件论元抽取任务
+    :param text: 待抽取的文本
+    :param events_info: 包含多个事件类型和论元类型信息的列表
+    :return: 包含所有事件抽取结果的列表
+    """
+    tasks = [
+        _extract_single_event(text, event.event_type, event.argument_types)
+        for event in events_info
+    ]
+    results = await asyncio.gather(*tasks)
+    return results

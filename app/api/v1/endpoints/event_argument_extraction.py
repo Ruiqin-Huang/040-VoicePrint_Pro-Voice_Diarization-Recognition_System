@@ -3,7 +3,7 @@ import traceback
 
 from app.models.common import ResponseResult
 from app.models.event_argument_extraction import EventArgumentExtractionRequest, EventArgumentExtractionResponseData
-from app.services.event_argument_extraction import process_event_argument_extraction
+from app.services.event_argument_extraction import process_multi_event_argument_extraction
 from app.core.error_codes import ResponseCode
 
 router = APIRouter(prefix="/api")
@@ -11,17 +11,16 @@ router = APIRouter(prefix="/api")
 @router.post("/event_argument_extraction", response_model=ResponseResult)
 async def event_argument_extraction(request: EventArgumentExtractionRequest):
     """
-    事件论元抽取API - 从给定文本中抽取指定事件的论元
+    事件论元抽取API - 从给定文本中抽取多个指定事件的论元
     """
     try:
-        result_dict = await process_event_argument_extraction(
-            request.text, request.event_type, request.argument_types
+        results = await process_multi_event_argument_extraction(
+            request.text, request.events_info
         )
         
         response_data = EventArgumentExtractionResponseData(
-            trigger=result_dict["trigger"],
-            arguments=result_dict["arguments"],
-            event_type=result_dict["event_type"]
+            text=request.text,
+            events=results
         )
         
         return ResponseResult(
