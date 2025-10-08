@@ -1253,6 +1253,51 @@ files对象包含以下字段：
 - **请求格式**: application/json
 - **功能**: 接收文本和可选的实体类型列表，返回一个包含所有已识别实体的列表。
 
+#### 使用方法
+
+##### 1. 模型加载与配置
+
+当前接口支持两种大模型加载方式，您可以通过修改配置文件来选择和定义使用哪种模型。
+
+-   **支持的方式**:
+    1.  `ollama_api`: 通过网络请求调用本地部署的Ollama API服务。
+    2.  `local_hf`: 直接加载本地存储的Hugging Face格式的模型文件。
+
+-   **如何配置**:
+    所有模型相关的配置均在 app/config/settings.py 文件中管理。
+    -   **切换加载方式**:
+        修改 `llm_mode` 字段的值。例如，要切换到本地Hugging Face模型，请设置：
+        `llm_mode: Literal['local_hf', 'ollama_api'] = 'ollama_api'`
+    -   **自定义模型路径或名称**:
+        -   对于 `ollama_api` 模式，请修改以下字段：
+            -   `llm_api_endpoint`: 您的Ollama服务地址 (默认为: `"http://localhost:11434/api/generate"`)。
+            -   `llm_model_name`: 您在Ollama中部署的模型名称 (默认为: `"deepseek-r1:7b"`)。
+        -   对于 `local_hf` 模式，请修改以下字段：
+            -   `llm_hf_path`: 指向您本地Hugging Face模型目录的路径 (默认为: `"./pretrained_models/qwen1.5-7b-chat-hf"`)。
+
+##### 2. 提升抽取准确率 
+
+为获得更精确的抽取结果，采用了“思维链”（Chain-of-Thought）技术来引导大模型实体抽取。
+-   **思维链原理**:
+    当前的Prompt会引导模型遵循一个清晰的执行步骤：
+    1.  **识别**: 首先，仔细阅读并理解文本和实体定义。
+    2.  **决策**: 然后，判断文本中是否存在符合定义的实体。如果不存在，返回空列表。
+    3.  **输出**: 最后，严格按照指定的JSON格式输出结果。
+    该过程强迫模型进行逻辑思考，而非直接给出答案，从而提高了准确性和稳定性，抑制模型幻觉现象。
+-   **如何预定义实体信息**:
+    为了让模型更精确地理解特定实体，特别是在处理专业或模糊的实体类型时，您可以在抽取前预先定义实体信息。
+    在 app/services/entity_extraction.py 文件，找到并编辑 `ENTITY_DEFINITIONS` 字典。通过为待抽取的实体类型预先添加或修改描述和示例，可以显著提升模型对该实体的识别能力。
+
+##### 3. Ollama 模型使用简介
+
+如果您选择使用 `ollama_api` 模式，需要先在本地运行Ollama并下载所需模型。
+-   **如何下载并运行模型**:
+    打开您的终端，执行以下命令即可下载并运行一个新模型（以`deepseek-r1:7b`为例）：
+    ```bash
+    ollama run deepseek-r1:7b
+    ```
+    Ollama会自动下载模型文件，并在下载完成后启动一个本地API服务。您可以在app/config/settings.py中将`llm_model_name`设置为`"deepseek-r1:7b"`来使用它。
+
 #### 请求参数
 
 请求体使用JSON格式，包含以下字段：

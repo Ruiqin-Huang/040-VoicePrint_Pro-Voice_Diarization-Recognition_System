@@ -1,4 +1,5 @@
 from app.config.settings import settings
+import httpx
 
 # 懒加载实例
 _local_hf_pipeline = None
@@ -28,16 +29,42 @@ def get_local_hf_pipeline():
 
 async def generate_text(system_prompt: str, user_prompt: str) -> str:
     """
-    使用本地 Hugging Face 模型生成文本
+    统一的文本生成函数，根据配置自动选择调用方式
     """
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
     ]
 
-    if settings.llm_mode == 'local_hf':
+    if settings.llm_mode == 'ollama_api':
+        # 方式一：调用 Ollama API
+        if not settings.llm_api_endpoint or not settings.llm_model_name:
+            raise ValueError("LLM_API_ENDPOINT and LLM_MODEL_NAME must be configured for 'ollama_api' mode.")
+        
+        async with httpx.AsyncClient() as client:
+            # 对于Ollama的 /api/generate, 通常将system和user prompt合并
+            full_prompt = f"System: {system_prompt}\nUser: {user_prompt}"
+            
+            payload = {
+                "model": settings.llm_model_name,
+                "prompt": full_prompt,
+                "system": system_prompt, # 也可以单独传递system prompt
+                "stream": False,
+                "options": {
+                    "temperature": 0.1,
+                    "top_p": 0.95,
+                    "num_predict": 1024
+                }
+            }
+            response = await client.post(settings.llm_api_endpoint, json=payload, timeout=120.0)
+            response.raise_for_status()
+            # Ollama /api/generate 返回的响应在 'response' 字段
+            return response.json().get("response", "")
+
+    elif settings.llm_mode == 'local_hf':
+        # 方式二：调用本地 Hugging Face 模型
         if not settings.llm_hf_path:
-            raise ValueError("LLM_HF_PATH is not configured in .env file.")
+            raise ValueError("LLM_HF_PATH is not configured for 'local_hf' mode.")
             
         hf_pipeline = get_local_hf_pipeline()
         
@@ -60,5 +87,4 @@ async def generate_text(system_prompt: str, user_prompt: str) -> str:
         return response_text
     
     else:
-        # 理论上不会执行到这里，因为 config 已限定模式
         raise ValueError(f"Unsupported LLM_MODE: {settings.llm_mode}")

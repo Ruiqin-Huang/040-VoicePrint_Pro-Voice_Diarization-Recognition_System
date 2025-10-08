@@ -15,7 +15,8 @@ import whisper
 import requests
 
 # 加载Whisper模型（全局加载，避免重复加载）
-whisper_model = whisper.load_model(settings.WHISPER_MODEL_SIZE, download_root=settings.WHISPER_CACHE_DIR)
+load_model_on_device = f"cuda:{settings.GPU_ID}" if settings.USE_GPU else "cpu"
+whisper_model = whisper.load_model(settings.WHISPER_MODEL_SIZE, device=load_model_on_device, download_root=settings.WHISPER_CACHE_DIR)
 
 async def is_url(path: str) -> bool:
     """检查路径是否为URL"""

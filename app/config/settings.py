@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     
     # GPU设置
     USE_GPU: bool = True
-    GPU_ID: int = 0
+    GPU_ID: int = 3
     
     # Milvus配置
     MILVUS_COLLECTION = "voiceprint_db" # 默认插入的Milvus集合名称
@@ -73,9 +73,17 @@ embedding_model:
     embedding_size: <embedding_size>
 """
     
-    llm_mode: Literal['local_hf'] = 'local_hf'
+    # --- LLM 配置 ---
+    # llm_mode: 'local_hf' 使用本地HuggingFace模型, 'api' 使用Ollama API
+    llm_mode: Literal['local_hf', 'ollama_api'] = 'ollama_api'
+    
+    # local_hf 模式配置
     llm_hf_path: Optional[str] = "./pretrained_models/qwen1.5-7b-chat-hf" # 本地huggingface格式模型目录路径
-    llm_device: str = "auto" # 'auto', 'cpu', 'cuda', 'cuda:0' 等，让transformers自动选择设备
+    llm_device: str = "auto" # 'auto', 'cpu', 'cuda', 'cuda:0' 等
+    
+    # api 模式配置 (Ollama)
+    llm_api_endpoint: Optional[str] = "http://localhost:11434/api/generate" # Ollama API 服务地址
+    llm_model_name: Optional[str] = "deepseek-r1:7b" # Ollama 中部署的模型名称
     
     MILVUS_HOST: str = "10.108.17.241"
     MILVUS_PORT: str = "19530"

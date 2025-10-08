@@ -47,3 +47,4 @@ peft
 cpm_kernels
 gradio
 pymilvus
+httpx
