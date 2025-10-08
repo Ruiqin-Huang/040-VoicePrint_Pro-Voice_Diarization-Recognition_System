@@ -1297,6 +1297,13 @@ files对象包含以下字段：
     ollama run deepseek-r1:7b
     ```
     Ollama会自动下载模型文件，并在下载完成后启动一个本地API服务。您可以在app/config/settings.py中将`llm_model_name`设置为`"deepseek-r1:7b"`来使用它。
+    形如：
+    ```python
+    ENTITY_DEFINITIONS = {
+        "电话号码": "由数字和特殊字符（如'+', '-', '()'）组成的联系号码，可能包含国家代码和区号。例如'13812345678', '+1 (555) 123-4567'",
+        "邮箱地址": "包含'@'符号的标准电子邮件地址格式。例如'张三@示例.com', 'john.doe@example.com'",
+    }
+    ```
 
 #### 请求参数
 
