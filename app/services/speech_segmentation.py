@@ -18,28 +18,52 @@ import requests
 import tempfile 
 from urllib.parse import urlparse 
 
-async def extract_speaker_audio(wav_path: str, results: List, target_speaker: int, save_path: str) -> str:
+async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num_speakers: int) -> str:
     """从原始音频中提取目标说话人的语音，其他人语音置为静音"""
+    save_dir = os.path.join(settings.OUTPUT_DIR, file_dir)
+    os.makedirs(save_dir, exist_ok=True)
+
     # 读取音频
     audio, sr = librosa.load(wav_path, sr=None)
-    audio_out = np.zeros_like(audio)  # 初始化输出音频为零（静音）
+    # 创建speaker人数长度的音频列表，每个元素都是静音数组
+    audio_out_list = [np.zeros_like(audio) for _ in range(num_speakers)]
+
+    # 按照真实出现顺序编号说话人（原始输出不一定编号连续）
+    speakers = {}
 
     # 遍历所有说话人的语音段落
     for seg in results:
         start_time, end_time, speaker_id = seg
 
-        if speaker_id == target_speaker:
-            # 获取音频的起始和结束位置
-            start_sample = int(start_time * sr)
-            end_sample = int(end_time * sr)
+        if speaker_id not in speakers:
+            speakers[speaker_id] = len(speakers)
+        real_speaker_id = speakers[speaker_id]
 
-            # 将目标说话人的语音段复制到输出音频中
-            if end_sample <= len(audio):  # 确保索引不超出范围
-                audio_out[start_sample:end_sample] = audio[start_sample:end_sample]
+        # 获取音频的起始和结束位置
+        start_sample = int(start_time * sr)
+        end_sample = int(end_time * sr)
+
+        # 将目标说话人的语音段复制到输出音频中
+        if end_sample <= len(audio):  # 确保索引不超出范围
+            audio_out_list[real_speaker_id][start_sample:end_sample] = audio[start_sample:end_sample]
+    
+    segment_files = []
 
     # 保存输出音频
-    sf.write(save_path, audio_out, sr)
-    return save_path
+    for audio_out in audio_out_list:
+        segment_id = str(uuid.uuid4())
+        filename = f"{segment_id}.wav"
+        save_path = os.path.join(save_dir, filename)
+
+        sf.write(save_path, audio_out, sr)
+        
+        segment_files.append(
+            {
+                "id": segment_id,
+                "file_url": save_path
+            }
+        )
+    return segment_files
 
 async def extract_and_save_speaker_segments(wav_path: str, results: List, file_dir: str) -> Dict[str, Any]:
     """提取语音段（自动合并连续的相同说话人段）"""
@@ -82,10 +106,10 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, file_d
         filepath = os.path.join(save_dir, filename)
         output_filepath = os.path.join(file_dir, filename)
         
-        # 提取并保存音频
-        start_sample = int(start_time * sr)
-        end_sample = int(end_time * sr)
-        sf.write(filepath, audio[start_sample:end_sample], sr)
+        # # 提取并保存音频
+        # start_sample = int(start_time * sr)
+        # end_sample = int(end_time * sr)
+        # sf.write(filepath, audio[start_sample:end_sample], sr)
 
         identity = ["主叫", "被叫"]
 
@@ -198,17 +222,19 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
             file_type = get_file_type(actual_speakers)
             segment_files = []
 
-            # 提取说话人音频
+            # 提取说话人分割元数据
             metadata = await extract_and_save_speaker_segments(local_path, result['text'], os.path.join(output_dir, base_name))
 
-            segment_files = [
-                {
-                    "id": seg["id"],
-                    # "file_url": path_mapper.container_to_host(seg["file_path"])
-                    "file_url": seg["file_path"]
-                }
-                for seg in metadata["segments"]
-            ]
+            # segment_files = [
+            #     {
+            #         "id": seg["id"],
+            #         # "file_url": path_mapper.container_to_host(seg["file_path"])
+            #         "file_url": seg["file_path"]
+            #     }
+            #     for seg in metadata["segments"]
+            # ]
+
+            segment_files = await extract_speaker_audio(local_path, result['text'], os.path.join(output_dir, base_name), actual_speakers)
             
             # 添加到结果列表
             results.append({
