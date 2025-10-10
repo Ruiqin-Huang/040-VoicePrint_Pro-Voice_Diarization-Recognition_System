@@ -16,6 +16,12 @@ import requests
 
 # 加载Whisper模型（全局加载，避免重复加载）
 load_model_on_device = f"cuda:{settings.GPU_ID}" if settings.USE_GPU else "cpu"
+# 使用前先检查gpu是否可用，如果不可用则使用cpu
+if settings.USE_GPU:
+    import torch
+    if not torch.cuda.is_available():
+        load_model_on_device = "cpu"
+        print("[WARN] GPU不可用，已切换到CPU模式。")
 whisper_model = whisper.load_model(settings.WHISPER_MODEL_SIZE, device=load_model_on_device, download_root=settings.WHISPER_CACHE_DIR)
 
 async def is_url(path: str) -> bool:
