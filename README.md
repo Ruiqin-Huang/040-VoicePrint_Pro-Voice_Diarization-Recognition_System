@@ -1251,29 +1251,17 @@ files对象包含以下字段：
 - **URL**: `/api/entity_extraction`
 - **方法**: POST
 - **请求格式**: application/json
-- **功能**: 接收文本和可选的实体类型列表，返回一个包含所有已识别实体的列表。
+- **功能**: 接收文本、可选的实体类型列表以及模型调用信息，返回一个包含所有已识别实体的列表。
 
 #### 使用方法
 
 ##### 1. 模型加载与配置
 
-当前接口支持两种大模型加载方式，您可以通过修改配置文件来选择和定义使用哪种模型。
+当前接口支持两种大模型加载方式，您可以通过`model_info`参数动态指定使用哪种模型。
 
 -   **支持的方式**:
     1.  `ollama_api`: 通过网络请求调用本地部署的Ollama API服务。
     2.  `local_hf`: 直接加载本地存储的Hugging Face格式的模型文件。
-
--   **如何配置**:
-    所有模型相关的配置均在 app/config/settings.py 文件中管理。
-    -   **切换加载方式**:
-        修改 `llm_mode` 字段的值。例如，要切换到本地Hugging Face模型，请设置：
-        `llm_mode: Literal['local_hf', 'ollama_api'] = 'ollama_api'`
-    -   **自定义模型路径或名称**:
-        -   对于 `ollama_api` 模式，请修改以下字段：
-            -   `llm_api_endpoint`: 您的Ollama服务地址 (默认为: `"http://localhost:11434/api/generate"`)。
-            -   `llm_model_name`: 您在Ollama中部署的模型名称 (默认为: `"deepseek-r1:7b"`)。
-        -   对于 `local_hf` 模式，请修改以下字段：
-            -   `llm_hf_path`: 指向您本地Hugging Face模型目录的路径 (默认为: `"./pretrained_models/qwen1.5-7b-chat-hf"`)。
 
 ##### 2. 提升抽取准确率 
 
@@ -1287,16 +1275,6 @@ files对象包含以下字段：
 -   **如何预定义实体信息**:
     为了让模型更精确地理解特定实体，特别是在处理专业或模糊的实体类型时，您可以在抽取前预先定义实体信息。
     在 app/services/entity_extraction.py 文件，找到并编辑 `ENTITY_DEFINITIONS` 字典。通过为待抽取的实体类型预先添加或修改描述和示例，可以显著提升模型对该实体的识别能力。
-
-##### 3. Ollama 模型使用简介
-
-如果您选择使用 `ollama_api` 模式，需要先在本地运行Ollama并下载所需模型。
--   **如何下载并运行模型**:
-    打开您的终端，执行以下命令即可下载并运行一个新模型（以`deepseek-r1:7b`为例）：
-    ```bash
-    ollama run deepseek-r1:7b
-    ```
-    Ollama会自动下载模型文件，并在下载完成后启动一个本地API服务。您可以在app/config/settings.py中将`llm_model_name`设置为`"deepseek-r1:7b"`来使用它。
     形如：
     ```python
     ENTITY_DEFINITIONS = {
@@ -1313,19 +1291,37 @@ files对象包含以下字段：
 | ------ | ---- | ---- | ---- |
 | text | String | 是 | 待抽取的文本内容（支持中英文）。 |
 | entity_types | Array[String] | 否 | 自定义的实体类型列表。如果未提供，将使用默认的40种军事领域实体类型。 |
+| model_info | Object | 是 | 指定用于抽取的大模型信息。 |
 
-请求体示例（使用自定义实体类型）：
+`model_info` 对象包含以下字段：
+| 参数名 | 类型 | 必填 | 描述 |
+| ------ | ---- | ---- | ---- |
+| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'` 或 `'ollama_api'` 之一。 |
+| model_name | String | `ollama_api` 模式下是 | Ollama中部署的模型名称，例如 `"deepseek-r1:7b"`。 |
+| api_address | String | `ollama_api` 模式下是 | Ollama API服务地址，例如 `"http://localhost:11434/api/generate"`。 |
+| model_dir | String | `local_hf` 模式下是 | 本地Hugging Face格式模型所在的目录路径。 |
+
+请求体示例（使用Ollama API）：
 ```json
 {
   "text": "张三出生于北京，任职于百度",
-  "entity_types": ["人名", "地名", "组织"]
+  "entity_types": ["人名", "地名", "组织"],
+  "model_info": {
+      "model_call_type": "ollama_api",
+      "model_name": "deepseek-r1:7b",
+      "api_address": "http://localhost:11434/api/generate"
+  }
 }
 ```
 
-请求体示例（使用默认实体类型）：
+请求体示例（使用本地HF模型）：
 ```json
 {
-  "text": "Falcon One to Command Center, this is Lieutenant John Smith reporting from the Marine Corps, urgent request: we are under enemy ambush at Grid Point Three in Baghdad, time 13:30, date July 31, 2024."
+  "text": "Falcon One to Command Center, this is Lieutenant John Smith reporting from the Marine Corps, urgent request: we are under enemy ambush at Grid Point Three in Baghdad, time 13:30, date July 31, 2024.",
+  "model_info": {
+      "model_call_type": "local_hf",
+      "model_dir": "./pretrained_models/qwen1.5-7b-chat-hf"
+  }
 }
 ```
 
@@ -1376,7 +1372,7 @@ API响应使用JSON格式，包含以下字段：
 - **URL**: `/api/event_argument_extraction`
 - **方法**: POST
 - **请求格式**: application/json
-- **功能**: 接收文本和包含多个事件信息的列表，返回一个包含原始文本和所有事件抽取结果的列表。
+- **功能**: 接收文本、包含多个事件信息的列表以及模型调用信息，返回一个包含原始文本和所有事件抽取结果的列表。
 
 #### 请求参数
 
@@ -1386,6 +1382,7 @@ API响应使用JSON格式，包含以下字段：
 | ------ | ---- | ---- | ---- |
 | text | String | 是 | 待抽取的文本内容（支持中英文）。 |
 | events_info | Array[Object] | 是 | 包含一个或多个事件信息的列表。每个对象包含 `event_type` 和可选的 `argument_types`。 |
+| model_info | Object | 是 | 指定用于抽取的大模型信息。 |
 
 `events_info` 中每个对象的结构：
 
@@ -1394,15 +1391,42 @@ API响应使用JSON格式，包含以下字段：
 | event_type | String | 是 | 指定的目标事件类型（例如 "财经"）。 |
 | argument_types | Array[String] | 否 | 自定义的论元类型列表。如果未提供，将使用默认论元：['主体', '客体', '时间', '地点', '时态']。 |
 
-请求体示例：
+`model_info` 对象包含以下字段：
+| 参数名 | 类型 | 必填 | 描述 |
+| ------ | ---- | ---- | ---- |
+| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'` 或 `'ollama_api'` 之一。 |
+| model_name | String | `ollama_api` 模式下是 | Ollama中部署的模型名称，例如 `"deepseek-r1:7b"`。 |
+| api_address | String | `ollama_api` 模式下是 | Ollama API服务地址，例如 `"http://localhost:11434/api/generate"`。 |
+| model_dir | String | `local_hf` 模式下是 | 本地Hugging Face格式模型所在的目录路径。 |
+
+请求体示例（通过ollama api调用）：
 ```json
 {
   "text": "2020年5月20日，光速汽车在重庆发布了电动汽车“极光”。5月25日，光速汽车与速驰集团在成都签署了合作协议。5月30日，速驰集团在上海完成了对光速汽车的并购。",
   "events_info": [
     {"event_type": "新车发布", "argument_types": ["发布方", "车型", "时间", "地点"]},
-    {"event_type": "合作签署", "argument_types": ["合作方A", "合作方B", "时间", "地点"]},
     {"event_type": "公司并购", "argument_types": ["并购方", "被并购方", "时间", "地点"]}
-  ]
+  ],
+  "model_info": {
+      "model_call_type": "ollama_api",
+      "model_name": "deepseek-r1:7b",
+      "api_address": "http://localhost:11434/api/generate"
+  }
+}
+```
+
+请求体示例（通过本地huggingface模型调用）：
+```json
+{
+  "text": "2020年5月20日，光速汽车在重庆发布了电动汽车“极光”。5月25日，光速汽车与速驰集团在成都签署了合作协议。5月30日，速驰集团在上海完成了对光速汽车的并购。",
+  "events_info": [
+    {"event_type": "新车发布", "argument_types": ["发布方", "车型", "时间", "地点"]},
+    {"event_type": "公司并购", "argument_types": ["并购方", "被并购方", "时间", "地点"]}
+  ],
+  "model_info": {
+      "model_call_type": "local_hf",
+      "model_dir": "./pretrained_models/qwen1.5-7b-chat-hf"
+  }
 }
 ```
 
@@ -1442,86 +1466,24 @@ API响应使用JSON格式，包含以下字段：
         "events": [
             {
                 "event_type": "新车发布",
-                "argument_types": [
-                    "发布方",
-                    "车型",
-                    "时间",
-                    "地点"
-                ],
-                "trigger": "发布",
+                "argument_types": ["发布方", "车型", "时间", "地点"],
+                "trigger": "发布了",
                 "arguments": [
-                    {
-                        "name": "发布方",
-                        "value": "光速汽车"
-                    },
-                    {
-                        "name": "车型",
-                        "value": "电动汽车\"极光\""
-                    },
-                    {
-                        "name": "时间",
-                        "value": "2020年5月20日"
-                    },
-                    {
-                        "name": "地点",
-                        "value": "重庆"
-                    }
-                ]
-            },
-            {
-                "event_type": "合作签署",
-                "argument_types": [
-                    "合作方A",
-                    "合作方B",
-                    "时间",
-                    "地点"
-                ],
-                "trigger": "签署了合作协议",
-                "arguments": [
-                    {
-                        "name": "合作方A",
-                        "value": "光速汽车"
-                    },
-                    {
-                        "name": "合作方B",
-                        "value": "速驰集团"
-                    },
-                    {
-                        "name": "时间",
-                        "value": "5月25日"
-                    },
-                    {
-                        "name": "地点",
-                        "value": "成都"
-                    }
+                    {"name": "发布方", "value": "光速汽车"},
+                    {"name": "车型", "value": "极光"},
+                    {"name": "时间", "value": "2020年5月20日"},
+                    {"name": "地点", "value": "重庆"}
                 ]
             },
             {
                 "event_type": "公司并购",
-                "argument_types": [
-                    "并购方",
-                    "被并购方",
-                    "时间",
-                    "地点"
-                ],
+                "argument_types": ["并购方", "被并购方", "时间", "地点"],
                 "trigger": "并购",
                 "arguments": [
-                    {
-                        "name": "并购方",
-                        "value": "速驰集团"
-                    },
-                    {
-                        "name": "被并购方",
-                        "value": "光速汽车"
-                    },
-                    {
-                        "name": "时间",
-                        "value": "5月30日"
-                    },
-                    {
-                        "name": "地点",
-                        "value": "上海"
-                    }
+                    {"name": "并购方", "value": "速驰集团"},
+                    {"name": "被并购方", "value": "光速汽车"},
+                    {"name": "时间", "value": "5月30日"},
+                    {"name": "地点", "value": "上海"}
                 ]
             }
         ]

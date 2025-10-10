@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 
 from app.llm import llm_client
 from app.models.event_argument_extraction import EventInfo, Argument, SingleEventResult
+from app.models.common import ModelInfo
 
 # --- Prompts Definition ---
 
@@ -59,7 +60,7 @@ def _clean_json_string(json_str: str) -> str:
     json_str = re.sub(r',\s*\]', ']', json_str)
     return json_str
 
-async def _extract_single_event(text: str, event_info: EventInfo) -> SingleEventResult:
+async def _extract_single_event(text: str, event_info: EventInfo, model_info: ModelInfo) -> SingleEventResult:
     """对单个事件进行论元抽取。"""
     event_type = event_info.event_type
     argument_types = event_info.argument_types or DEFAULT_ARGUMENT_TYPES
@@ -74,7 +75,11 @@ async def _extract_single_event(text: str, event_info: EventInfo) -> SingleEvent
     response_text = ""
     parsed_json = {}
     try:
-        response_text = await llm_client.generate_text(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+        response_text = await llm_client.generate_text(
+            system_prompt=SYSTEM_PROMPT, 
+            user_prompt=user_prompt,
+            model_info=model_info
+        )
         
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
         if match:
@@ -135,8 +140,8 @@ async def _extract_single_event(text: str, event_info: EventInfo) -> SingleEvent
         )
 
 
-async def process_multi_event_argument_extraction(text: str, events_info: List[EventInfo]) -> List[SingleEventResult]:
+async def process_multi_event_argument_extraction(text: str, events_info: List[EventInfo], model_info: ModelInfo) -> List[SingleEventResult]:
     """并行处理单个文本中的多个事件论元抽取任务。"""
-    tasks = [_extract_single_event(text, event) for event in events_info]
+    tasks = [_extract_single_event(text, event, model_info) for event in events_info]
     results = await asyncio.gather(*tasks)
     return results

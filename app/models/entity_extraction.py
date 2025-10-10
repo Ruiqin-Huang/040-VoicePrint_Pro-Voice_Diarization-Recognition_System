@@ -1,9 +1,11 @@
 from typing import List, Optional
 from pydantic import BaseModel, validator
+from app.models.common import ModelInfo
 
 class EntityExtractionRequest(BaseModel):
     text: str
     entity_types: Optional[List[str]] = None
+    model_info: ModelInfo
 
     @validator('text')
     def text_must_not_be_empty(cls, v):

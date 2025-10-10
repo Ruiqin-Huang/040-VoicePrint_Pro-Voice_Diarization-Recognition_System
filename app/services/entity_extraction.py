@@ -5,6 +5,7 @@ from typing import List, Dict, Optional
 
 from app.llm import llm_client
 from app.models.entity_extraction import EntityResult
+from app.models.common import ModelInfo
 
 # --- Prompts Definition ---
 
@@ -26,6 +27,8 @@ ENTITY_DEFINITIONS = {
     "呼号": "用于无线电通信中识别身份的唯一代号，通常由字母和数字组成。例如'洞幺', 'Alpha Bravo 1'",
     "时间": "表示一天中特定时刻的时间点，可以是12小时制或24小时制。例如'下午3点15分', '15:15 UTC'",
     "日期": "表示特定日期的文本，格式多样。例如'2025年10月9日', 'October 9, 2025'",
+    "事件": "描述特定活动或事件的名称或标题。例如'奥运会', 'World War II'",
+    "战争": "指代历史或当前的军事冲突名称。例如'二战', 'Vietnam War'",
     "武器类型": "武器装备的具体类别或名称。例如'95式自动步枪', 'F-22 Raptor'",
     "车辆类型": "陆、海、空、天载具的具体类别或名称。例如'99A主战坦克', 'Toyota Camry'",
     "任务代号": "为特定行动或计划指定的名称。例如'长城行动', 'Operation Overlord'",
@@ -107,7 +110,7 @@ def _clean_json_string(json_str: str) -> str:
     json_str = re.sub(r',\s*\]', ']', json_str)
     return json_str
 
-async def _extract_single_entity_type(text: str, entity_type: str) -> List[EntityResult]:
+async def _extract_single_entity_type(text: str, entity_type: str, model_info: ModelInfo) -> List[EntityResult]:
     """对单一实体类型进行抽取。"""
     # 从定义字典中获取实体定义，如果不存在则使用通用描述
     entity_definition = ENTITY_DEFINITIONS.get(entity_type, f"指代“{entity_type}”的词语或短语。")
@@ -121,7 +124,11 @@ async def _extract_single_entity_type(text: str, entity_type: str) -> List[Entit
     response_text = ""
     parsed_json = {}
     try:
-        response_text = await llm_client.generate_text(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+        response_text = await llm_client.generate_text(
+            system_prompt=SYSTEM_PROMPT, 
+            user_prompt=user_prompt,
+            model_info=model_info
+        )
         
         # 优先尝试从Markdown代码块中提取
         match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_text, re.DOTALL)
@@ -169,10 +176,11 @@ async def _extract_single_entity_type(text: str, entity_type: str) -> List[Entit
         return []
 
 
-async def process_entity_extraction(text: str, entity_types: Optional[List[str]] = None) -> List[EntityResult]:
+async def process_entity_extraction(text: str, model_info: ModelInfo, entity_types: Optional[List[str]] = None) -> List[EntityResult]:
     """
     并行执行多个实体类型的抽取任务
     :param text: 待抽取的文本
+    :param model_info: 模型调用信息
     :param entity_types: 自定义的实体类型列表
     :return: 包含所有抽取结果的字典列表
     """
@@ -180,7 +188,7 @@ async def process_entity_extraction(text: str, entity_types: Optional[List[str]]
         entity_types = DEFAULT_ENTITY_TYPES
     
     # 为每个实体类型创建一个异步任务
-    tasks = [_extract_single_entity_type(text, etype) for etype in entity_types]
+    tasks = [_extract_single_entity_type(text, etype, model_info) for etype in entity_types]
     
     # 并行执行所有任务
     results_from_tasks = await asyncio.gather(*tasks)

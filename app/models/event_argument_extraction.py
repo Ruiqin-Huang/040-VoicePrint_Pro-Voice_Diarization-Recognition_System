@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict
+from app.models.common import ModelInfo
 
 class EventInfo(BaseModel):
     event_type: str = Field(..., description="要抽取的事件类型")
@@ -8,6 +9,7 @@ class EventInfo(BaseModel):
 class EventArgumentExtractionRequest(BaseModel):
     text: str = Field(..., description="待抽取的原始文本")
     events_info: List[EventInfo] = Field(..., description="包含一个或多个事件信息的列表", min_items=1)
+    model_info: ModelInfo
 
     @validator('text')
     def text_must_not_be_empty(cls, v):
