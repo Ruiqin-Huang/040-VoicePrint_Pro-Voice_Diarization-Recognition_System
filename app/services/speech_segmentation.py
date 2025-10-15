@@ -201,7 +201,7 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                 invalid_files.append(f"文件不存在: {file_path}")
                 results.append({
                     "file_id": file_id,
-                    "file_type": "未知",
+                    "file_type": "未知，该文件不存在",
                     "segment_files": []
                 })
                 continue
@@ -216,9 +216,8 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                     invalid_files.append(f"{file_path}: The effective audio duration is too short")
                     results.append({
                         "file_id": file_id,
-                        "file_type": "错误",
-                        "segment_files": [],
-                        "error": "该条音频过短或者未找到两个以上的不同说话人的声音"
+                        "file_type": "未知，该条音频过短或者未找到两个以上的不同说话人的声音",
+                        "segment_files": []
                     })
                     continue
                 else:
