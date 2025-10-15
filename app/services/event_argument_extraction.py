@@ -117,11 +117,16 @@ async def _extract_single_event(text: str, event_info: EventInfo, model_info: Mo
         # 创建一个字典以便快速查找抽到的论元值
         extracted_args_map = {arg.get("name"): arg.get("value", "None") for arg in raw_arguments if isinstance(arg, dict)}
 
-        # 按照请求的论元顺序构建最终结果，确保所有请求的论元都在
+        # 按照请求的论元顺序构建最终结果，并过滤掉无效的论元
         final_arguments = []
         for arg_type in argument_types:
             value = extracted_args_map.get(arg_type, "None")
             if not isinstance(value, str): value = str(value)
+            
+            # 如果值是 "none" (不区分大小写) 或 "未知"，则跳过，不添加到最终结果中
+            if value.lower() == 'none' or value == '未知':
+                continue
+            
             final_arguments.append(Argument(name=arg_type, value=value))
 
         return SingleEventResult(

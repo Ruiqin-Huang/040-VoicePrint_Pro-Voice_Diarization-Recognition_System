@@ -167,8 +167,12 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
             print(f"Warning: 'entities' field is not a list for type '{entity_type}'. Found: {type(entity_names)}")
             return []
         
-        # 构建符合API响应格式的列表
-        results = [EntityResult(type=entity_type, name=str(name)) for name in entity_names if isinstance(name, str) and name]
+        # 构建符合API响应格式的列表，并过滤掉无效的实体名称
+        results = [
+            EntityResult(type=entity_type, name=str(name)) 
+            for name in entity_names 
+            if isinstance(name, str) and name and str(name).lower() != 'none' and str(name) != '未知'
+        ]
         return results
 
     except Exception as e:
