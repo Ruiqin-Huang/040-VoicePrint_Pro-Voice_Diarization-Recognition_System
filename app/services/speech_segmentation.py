@@ -207,8 +207,22 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                 continue
                 
             # 分割说话人
-            with suppress_stdout_stderr():
-                result = sd_pipeline(local_path)
+            try:
+                with suppress_stdout_stderr():
+                    result = sd_pipeline(local_path)
+            except Exception as e:
+                if "The effective audio duration is too short" in str(e):
+                    print(f"Skipping {file_path} due to short audio duration.")
+                    invalid_files.append(f"{file_path}: The effective audio duration is too short")
+                    results.append({
+                        "file_id": file_id,
+                        "file_type": "错误",
+                        "segment_files": [],
+                        "error": "该条音频过短或者未找到两个以上的不同说话人的声音"
+                    })
+                    continue
+                else:
+                    raise e
 
             # 获取实际的说话人数量
             speaker_ids = set()
