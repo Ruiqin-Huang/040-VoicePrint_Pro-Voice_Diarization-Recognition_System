@@ -2,6 +2,7 @@ import json
 import re
 import asyncio
 from typing import List, Dict, Optional
+from datetime import datetime
 
 from app.llm import llm_client
 from app.models.entity_extraction import EntityResult
@@ -25,8 +26,8 @@ ENTITY_DEFINITIONS = {
     "组织": "公司、政府机构、非政府组织等实体的名称。例如'联合国', 'Google'",
     "军衔": "军队或准军事组织中的等级称号。例如'上校', 'Captain'",
     "呼号": "用于无线电通信中识别身份的唯一代号，通常由字母和数字组成。例如'洞幺', 'Alpha Bravo 1'",
-    "时间": "表示一天中特定时刻的时间点，可以是12小时制或24小时制。例如'下午3点15分', '15:15 UTC'",
-    "日期": "表示特定日期的文本，格式多样。例如'2025年10月9日', 'October 9, 2025'",
+    "时间": "表示一天中特定时刻的时间点（如'下午3点'）或包含日期的完整时间（如'2025年10月9日15点'）。需结合上下文（如'当天'、'同年'）补全信息，并输出为'YYYY-MM-DD HH:MM:SS'或'HH:MM:SS'格式，未知部分用'X'填充。",
+    "日期": "表示特定日期的文本（如'2025年10月9日'），不包含具体时间点。需结合上下文（如'同年'）补全信息，并输出为'YYYY-MM-DD'格式，未知部分用'X'填充。",
     "事件": "描述特定活动或事件的名称或标题。例如'奥运会', 'World War II'",
     "战争": "指代历史或当前的军事冲突名称。例如'二战', 'Vietnam War'",
     "武器类型": "武器装备的具体类别或名称。例如'95式自动步枪', 'F-22 Raptor'",
@@ -91,6 +92,34 @@ ENTITY_EXTRACTION_PROMPT = """
 请开始分析并返回JSON对象。
 """
 
+# 针对时间/日期抽取的专用Prompt
+TIME_DATE_EXTRACTION_PROMPT = """
+**任务：** 从给定文本中抽取出所有类型为“{entity_type}”的实体。
+
+**实体类型定义与格式化规则 ({entity_type}):**
+{entity_definition}
+
+**执行步骤:**
+1.  **识别与关联:** 仔细阅读下面的“待抽取文本”，找出所有与“{entity_type}”相关的表述。特别注意上下文中的指代词，如“当天”、“明天”、“去年”、“本月”等，并结合它们来推断完整的日期或时间。但绝对不要主观臆测或编造文本中不存在的信息。
+2.  **提取原始文本:** 将找到的原始时间/日期表述（例如“下午三点半”、“10号”）收集起来。
+3.  **决策:**
+    - **如果存在**一个或多个实体，将它们收集到一个列表中。
+    - **如果不存在**任何符合定义的实体，你**必须**生成一个空列表 `[]`。
+4.  **输出:** 严格按照指定的JSON格式返回结果，值为提取到的原始文本。
+
+**待抽取文本:**
+---
+{text}
+---
+
+**JSON输出格式 (值为原始文本):**
+{{
+  "entities": ["下午三点半", "10号"]
+}}
+
+请开始分析并返回JSON对象。
+"""
+
 # 默认实体类型
 DEFAULT_ENTITY_TYPES = [
     '电话号码','邮箱地址','人名','地名','组织','军衔','呼号','时间','日期','武器类型','车辆类型','任务代号','部队名称','坐标','频率',
@@ -110,16 +139,96 @@ def _clean_json_string(json_str: str) -> str:
     json_str = re.sub(r',\s*\]', ']', json_str)
     return json_str
 
+def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
+    """
+    将抽取的原始时间/日期文本规范化为指定格式。
+    """
+    # 优先处理包含明确日期和时间的组合字符串
+    # 例如 "2023年10月1日 14:30", "6月7日上午10点"
+    year, month, day, hour, minute, second = 'XXXX', 'XX', 'XX', 'XX', 'XX', 'XX'
+
+    # 提取年月日
+    date_match = re.search(r'(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
+    if date_match:
+        year = date_match.group(1)
+        month = date_match.group(2).zfill(2)
+        day = date_match.group(3).zfill(2)
+    else:
+        month_day_match = re.search(r'(\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
+        if month_day_match:
+            month = month_day_match.group(1).zfill(2)
+            day = month_day_match.group(2).zfill(2)
+        else:
+            day_match = re.search(r'(\d{1,2})[日号]', raw_text)
+            if day_match:
+                day = day_match.group(1).zfill(2)
+
+    # 提取时分秒
+    time_match = re.search(r'(\d{1,2})[:：时点](\d{1,2})[:：分]?(\d{1,2})?秒?', raw_text)
+    if time_match:
+        h, m, s = time_match.groups()
+        hour = h.zfill(2)
+        minute = m.zfill(2)
+        if s:
+            second = s.zfill(2)
+    else: # 处理 "下午3点半" 这种格式
+        hour_match = re.search(r'(\d{1,2})[:：时点]', raw_text)
+        if hour_match:
+            hour = hour_match.group(1)
+            if '半' in raw_text:
+                minute = '30'
+
+    # 处理上午/下午
+    if hour != 'XX' and int(hour) <= 12:
+        if '下午' in raw_text or '晚上' in raw_text:
+            if int(hour) < 12:
+                hour = str(int(hour) + 12)
+        elif '上午' in raw_text:
+             hour = hour.zfill(2)
+
+    if hour != 'XX':
+        hour = hour.zfill(2)
+
+    # 根据实体类型组合最终结果
+    if entity_type == '日期':
+        if year == 'XXXX' and month == 'XX' and day == 'XX':
+            return "" # 无效日期
+        return f"{year}-{month}-{day}"
+    
+    if entity_type == '时间':
+        has_date = not (year == 'XXXX' and month == 'XX' and day == 'XX')
+        has_time = not (hour == 'XX' and minute == 'XX' and second == 'XX')
+        
+        if not has_date and not has_time:
+            return "" # 无效时间
+
+        if has_date and has_time:
+            return f"{year}-{month}-{day} {hour}:{minute}:{second}"
+        elif has_time:
+            return f"{hour}:{minute}:{second}"
+        elif has_date: # 如果只抽取出日期，但类型是“时间”，也格式化输出
+            return f"{year}-{month}-{day} {hour}:{minute}:{second}"
+        
+    return raw_text # 对于其他类型，返回原始文本
+
 async def _extract_single_entity_type(text: str, entity_type: str, model_info: ModelInfo) -> List[EntityResult]:
     """对单一实体类型进行抽取。"""
     # 从定义字典中获取实体定义，如果不存在则使用通用描述
     entity_definition = ENTITY_DEFINITIONS.get(entity_type, f"指代“{entity_type}”的词语或短语。")
     
-    user_prompt = ENTITY_EXTRACTION_PROMPT.format(
-        text=text,
-        entity_type=entity_type,
-        entity_definition=entity_definition
-    )
+    # 为时间和日期选择专用prompt
+    if entity_type in ["时间", "日期"]:
+        user_prompt = TIME_DATE_EXTRACTION_PROMPT.format(
+            text=text,
+            entity_type=entity_type,
+            entity_definition=entity_definition
+        )
+    else:
+        user_prompt = ENTITY_EXTRACTION_PROMPT.format(
+            text=text,
+            entity_type=entity_type,
+            entity_definition=entity_definition
+        )
 
     response_text = ""
     parsed_json = {}
@@ -167,12 +276,16 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
             print(f"Warning: 'entities' field is not a list for type '{entity_type}'. Found: {type(entity_names)}")
             return []
         
-        # 构建符合API响应格式的列表，并过滤掉无效的实体名称
-        results = [
-            EntityResult(type=entity_type, name=str(name)) 
-            for name in entity_names 
-            if isinstance(name, str) and name and str(name).lower() != 'none' and str(name) != '未知'
-        ]
+        results = []
+        for name in entity_names:
+            if isinstance(name, str) and name and str(name).lower() != 'none' and str(name) != '未知':
+                # 对时间和日期进行后处理
+                if entity_type in ["时间", "日期"]:
+                    normalized_name = _normalize_datetime_output(name, entity_type)
+                    if normalized_name: # 只有在规范化后非空才添加
+                        results.append(EntityResult(type=entity_type, name=normalized_name))
+                else:
+                    results.append(EntityResult(type=entity_type, name=str(name)))
         return results
 
     except Exception as e:
