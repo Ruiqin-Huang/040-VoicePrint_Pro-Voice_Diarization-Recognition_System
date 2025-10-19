@@ -211,10 +211,6 @@ async def _extract_single_event(text: str, event_info: EventInfo, model_info: Mo
             model_info=model_info
         )
         
-        print(f"--- LLM Raw Response ---")
-        print(response_text)
-        print("------------------------------------------")
-        
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
         if match:
             dict_str = match.group(1)

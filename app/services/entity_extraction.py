@@ -280,9 +280,7 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
             user_prompt=user_prompt,
             model_info=model_info
         )
-        print(f"--- LLM Raw Response for '{entity_type}' ---")
-        print(response_text)
-        print("------------------------------------------")
+        
         # 优先尝试从Markdown代码块中提取
         match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_text, re.DOTALL)
         if match:
@@ -325,7 +323,6 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
             if isinstance(name, str) and name and str(name).lower() != 'none' and str(name) != '未知':
                 # 对时间和日期进行后处理
                 if entity_type in ["时间", "日期"]:
-                    print(f"Raw extracted {entity_type}: {name}")
                     normalized_name = _normalize_datetime_output(name, entity_type)
                     if normalized_name: # 只有在规范化后非空才添加
                         results.append(EntityResult(type=entity_type, name=normalized_name))

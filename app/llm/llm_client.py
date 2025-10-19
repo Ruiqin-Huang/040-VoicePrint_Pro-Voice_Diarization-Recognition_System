@@ -57,7 +57,7 @@ async def generate_text(system_prompt: str, user_prompt: str, model_info: ModelI
                 "options": {
                     "temperature": 0.1,
                     "top_p": 0.95,
-                    "num_predict": 1024
+                    "num_predict": 512
                 }
             }
             response = await client.post(model_info.api_address, json=payload, timeout=120.0)
