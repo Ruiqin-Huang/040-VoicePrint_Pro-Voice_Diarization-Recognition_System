@@ -36,6 +36,7 @@ ARGUMENT_EXTRACTION_PROMPT = """
 - `arguments` 字段必须是一个列表，其中每个元素都是一个包含 "name" 和 "value" 的对象。
 - 如果在文本中找不到某个论元，请将该论元的 "value" 设置为 "None"，禁止凭空捏造不存在的论元值。
 - 对于有特殊格式化要求的论元（如时间和日期），请在抽取时结合上下文，并尽量遵循格式要求。
+- 使用占位符'X'替换未知的时间/日期信息。例如对于具体年份不确定的日期'7月8日'，仅输出"XXXX-07-08"即可。对于具体日期不确定的时间'下午3点'，仅输出"XXXX-XX-XX 15:00:00"即可。
 
 **JSON格式示例:**
 {{
@@ -43,7 +44,6 @@ ARGUMENT_EXTRACTION_PROMPT = """
   "arguments": [
     {{"name": "论元1", "value": "抽到的值1"}},
     {{"name": "时间", "value": "2025-10-19 14:30:00"}},
-    {{"name": "论元2", "value": "None"}}
   ]
 }}
 
@@ -72,75 +72,116 @@ def _clean_json_string(json_str: str) -> str:
 def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
     """
     将抽取的原始时间/日期文本规范化为指定格式。
-    (Copied from entity_extraction.py)
+    此函数按优先级顺序尝试多种正则表达式来解析日期和时间。
     """
-    # 优先处理包含明确日期和时间的组合字符串
-    # 例如 "2023年10月1日 14:30", "6月7日上午10点"
-    year, month, day, hour, minute, second = 'XXXX', 'XX', 'XX', 'XX', 'XX', 'XX'
+    # 初始化所有时间日期组件为占位符
+    year, month, day = 'XXXX', 'XX', 'XX'
+    hour, minute, second = 'XX', 'XX', 'XX'
 
-    # 提取年月日
+    # --- 1. 提取年月日 (按最长、最完整模式优先) ---
+
+    # 模式 A: 完整格式 YYYY-MM-DD (或 YYYY年M月D日)
     date_match = re.search(r'(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
     if date_match:
         year = date_match.group(1)
         month = date_match.group(2).zfill(2)
         day = date_match.group(3).zfill(2)
     else:
-        month_day_match = re.search(r'(\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
-        if month_day_match:
-            month = month_day_match.group(1).zfill(2)
-            day = month_day_match.group(2).zfill(2)
+        # 模式 B: 年月格式 YYYY-MM (或 YYYY年M月)
+        year_month_match = re.search(r'(\d{4})[年/-](\d{1,2})月?', raw_text)
+        if year_month_match:
+            year = year_month_match.group(1)
+            month = year_month_match.group(2).zfill(2)
+            # day 保持 'XX'
         else:
-            day_match = re.search(r'(\d{1,2})[日号]', raw_text)
-            if day_match:
-                day = day_match.group(1).zfill(2)
+            # 模式 C: 仅年份 YYYY年
+            year_match = re.search(r'(\d{4})年', raw_text)
+            if year_match:
+                year = year_match.group(1)
+                # month 和 day 保持 'XX'
+            else:
+                # 模式 D: 月日格式 MM-DD (或 M月D日)
+                month_day_match = re.search(r'(\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
+                if month_day_match:
+                    month = month_day_match.group(1).zfill(2)
+                    day = month_day_match.group(2).zfill(2)
+                    # year 保持 'XXXX'
+                else:
+                    # 模式 E: 仅日期 D日
+                    day_match = re.search(r'(\d{1,2})[日号]', raw_text)
+                    if day_match:
+                        day = day_match.group(1).zfill(2)
+                        # year 和 month 保持 'XXXX', 'XX'
 
-    # 提取时分秒
+    # --- 2. 提取时分秒 ---
+
+    # 模式 A: 完整时间 HH:MM:SS (或 H点M分S秒)
     time_match = re.search(r'(\d{1,2})[:：时点](\d{1,2})[:：分]?(\d{1,2})?秒?', raw_text)
     if time_match:
         h, m, s = time_match.groups()
-        hour = h.zfill(2)
-        minute = m.zfill(2)
-        if s:
-            second = s.zfill(2)
-    else: # 处理 "下午3点半" 这种格式
+        if h: hour = h.zfill(2)
+        if m: minute = m.zfill(2)
+        if s: second = s.zfill(2)
+        else: second = '00' # 如果没有秒，则补00
+    else:
+        # 模式 B: 小时+半点，例如 "3点半"
         hour_match = re.search(r'(\d{1,2})[:：时点]', raw_text)
         if hour_match:
             hour = hour_match.group(1)
             if '半' in raw_text:
                 minute = '30'
+            else:
+                minute = '00' # 如果只有小时，分钟补00
+            second = '00' # 秒补00
 
-    # 处理上午/下午
+    # --- 3. 处理上午/下午/晚上 ---
     if hour != 'XX' and int(hour) <= 12:
         if '下午' in raw_text or '晚上' in raw_text:
-            if int(hour) < 12:
+            if int(hour) < 12: # 12点下午还是12点
                 hour = str(int(hour) + 12)
         elif '上午' in raw_text:
-             hour = hour.zfill(2)
+             hour = hour.zfill(2) # 确保上午时间是两位数，如 09
 
     if hour != 'XX':
         hour = hour.zfill(2)
 
-    # 根据实体类型组合最终结果
-    if entity_type == '日期':
-        if year == 'XXXX' and month == 'XX' and day == 'XX':
-            return "" # 无效日期
-        return f"{year}-{month}-{day}"
-    
-    if entity_type == '时间':
-        has_date = not (year == 'XXXX' and month == 'XX' and day == 'XX')
-        has_time = not (hour == 'XX' and minute == 'XX' and second == 'XX')
-        
-        if not has_date and not has_time:
-            return "" # 无效时间
+    # --- 4. 根据实体类型组合最终结果 ---
+    has_date_info = not (year == 'XXXX' and month == 'XX' and day == 'XX')
+    has_time_info = not (hour == 'XX' and minute == 'XX' and second == 'XX')
 
-        if has_date and has_time:
-            return f"{year}-{month}-{day} {hour}:{minute}:{second}"
-        elif has_time:
-            return f"{hour}:{minute}:{second}"
-        elif has_date: # 如果只抽取出日期，但类型是“时间”，也格式化输出
-            return f"{year}-{month}-{day} {hour}:{minute}:{second}"
-        
-    return raw_text # 对于其他类型，返回原始文本
+    # 如果没有任何有效的时间/日期信息被解析出来，则返回空
+    if not has_date_info and not has_time_info:
+        return ""
+
+    if entity_type == '日期':
+        if day != 'XX':
+            return f"{year}-{month}-{day}"
+        elif month != 'XX':
+            return f"{year}-{month}-XX" # 允许返回 YYYY-MM-XX 或 XXXX-MM-XX
+        elif year != 'XXXX':
+            return f"{year}-XX-XX" # 允许返回 YYYY-XX-XX
+        else:
+            return "" # 如果连年/月都没有，则认为抽取失败
+
+    if entity_type == '时间':
+        date_part = ""
+        if day != 'XX':
+            date_part = f"{year}-{month}-{day}"
+        elif month != 'XX':
+            date_part = f"{year}-{month}-XX"
+        elif year != 'XXXX':
+            date_part = f"{year}-XX-XX"
+
+        time_part = f"{hour}:{minute}:{second}" if has_time_info else ""
+
+        if date_part and time_part:
+            return f"{date_part} {time_part}"
+        elif has_time_info:
+            return time_part
+        elif date_part: # 如果只有日期部分
+            return f"{date_part} {hour}:{minute}:{second}"
+
+    return raw_text # 对于其他类型或无法解析的情况，返回原始文本
 
 async def _extract_single_event(text: str, event_info: EventInfo, model_info: ModelInfo) -> SingleEventResult:
     """对单个事件进行论元抽取。"""
@@ -169,6 +210,10 @@ async def _extract_single_event(text: str, event_info: EventInfo, model_info: Mo
             user_prompt=user_prompt,
             model_info=model_info
         )
+        
+        print(f"--- LLM Raw Response ---")
+        print(response_text)
+        print("------------------------------------------")
         
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
         if match:

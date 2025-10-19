@@ -26,8 +26,8 @@ ENTITY_DEFINITIONS = {
     "组织": "公司、政府机构、非政府组织等实体的名称。例如'联合国', 'Google'",
     "军衔": "军队或准军事组织中的等级称号。例如'上校', 'Captain'",
     "呼号": "用于无线电通信中识别身份的唯一代号，通常由字母和数字组成。例如'洞幺', 'Alpha Bravo 1'",
-    "时间": "表示一天中特定时刻的时间点（如'下午3点'）或包含日期的完整时间（如'2025年10月9日15点'）。需结合上下文（如'当天'、'同年'）补全信息，并输出为'YYYY-MM-DD HH:MM:SS'或'HH:MM:SS'格式，未知部分用'X'填充。",
-    "日期": "表示特定日期的文本（如'2025年10月9日'），不包含具体时间点。需结合上下文（如'同年'）补全信息，并输出为'YYYY-MM-DD'格式，未知部分用'X'填充。",
+    "时间": "表示一天中特定时刻的时间点（如'下午3点'）或包含日期的完整时间（如'2025年10月9日15点'）。需结合上下文（如'当天'、'同年'）补全信息。最终值应尽可能格式化为'YYYY-MM-DD HH:MM:SS'或'HH:MM:SS'。",
+    "日期": "表示特定日期的文本（如'2025年10月9日'），不包含具体时间点。需结合上下文（如'同年'）补全信息。最终值应尽可能格式化为'YYYY-MM-DD'。",
     "事件": "描述特定活动或事件的名称或标题。例如'奥运会', 'World War II'",
     "战争": "指代历史或当前的军事冲突名称。例如'二战', 'Vietnam War'",
     "武器类型": "武器装备的具体类别或名称。例如'95式自动步枪', 'F-22 Raptor'",
@@ -100,21 +100,21 @@ TIME_DATE_EXTRACTION_PROMPT = """
 {entity_definition}
 
 **执行步骤:**
-1.  **识别与关联:** 仔细阅读下面的“待抽取文本”，找出所有与“{entity_type}”相关的表述。特别注意上下文中的指代词，如“当天”、“明天”、“去年”、“本月”等，并结合它们来推断完整的日期或时间。但绝对不要主观臆测或编造文本中不存在的信息。
-2.  **提取原始文本:** 将找到的原始时间/日期表述（例如“下午三点半”、“10号”）收集起来。
-3.  **决策:**
+1.  **识别与关联:** 仔细阅读下面的“待抽取文本”，找出所有与“{entity_type}”相关的表述。特别注意上下文中的指代词，如“当天”、“明天”、“去年”、“本月”、“同年”等，并结合它们来推断完整的日期或时间。绝对不要主观臆测或编造文本中不存在的信息，使用占位符'X'替换未知信息。例如对于具体年份不确定的日期'7月8日'，仅输出"XXXX-07-08"即可。对于具体日期不确定的时间'下午3点'，仅输出"XXXX-XX-XX 15:00:00"即可。
+3.  **格式化:** 将找到的每个时间/日期实体，严格按照定义中要求的格式进行转换。
+4.  **决策:**
     - **如果存在**一个或多个实体，将它们收集到一个列表中。
     - **如果不存在**任何符合定义的实体，你**必须**生成一个空列表 `[]`。
-4.  **输出:** 严格按照指定的JSON格式返回结果，值为提取到的原始文本。
+5.  **输出:** 严格按照指定的JSON格式返回结果，值为**格式化后的字符串**。
 
 **待抽取文本:**
 ---
 {text}
 ---
 
-**JSON输出格式 (值为原始文本):**
+**JSON输出格式 (值为格式化后的字符串):**
 {{
-  "entities": ["下午三点半", "10号"]
+  "entities": ["2025-10-19 15:30:00", "XXXX-10-10"]
 }}
 
 请开始分析并返回JSON对象。
@@ -142,74 +142,116 @@ def _clean_json_string(json_str: str) -> str:
 def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
     """
     将抽取的原始时间/日期文本规范化为指定格式。
+    此函数按优先级顺序尝试多种正则表达式来解析日期和时间。
     """
-    # 优先处理包含明确日期和时间的组合字符串
-    # 例如 "2023年10月1日 14:30", "6月7日上午10点"
-    year, month, day, hour, minute, second = 'XXXX', 'XX', 'XX', 'XX', 'XX', 'XX'
+    # 初始化所有时间日期组件为占位符
+    year, month, day = 'XXXX', 'XX', 'XX'
+    hour, minute, second = 'XX', 'XX', 'XX'
 
-    # 提取年月日
+    # --- 1. 提取年月日 (按最长、最完整模式优先) ---
+
+    # 模式 A: 完整格式 YYYY-MM-DD (或 YYYY年M月D日)
     date_match = re.search(r'(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
     if date_match:
         year = date_match.group(1)
         month = date_match.group(2).zfill(2)
         day = date_match.group(3).zfill(2)
     else:
-        month_day_match = re.search(r'(\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
-        if month_day_match:
-            month = month_day_match.group(1).zfill(2)
-            day = month_day_match.group(2).zfill(2)
+        # 模式 B: 年月格式 YYYY-MM (或 YYYY年M月)
+        year_month_match = re.search(r'(\d{4})[年/-](\d{1,2})月?', raw_text)
+        if year_month_match:
+            year = year_month_match.group(1)
+            month = year_month_match.group(2).zfill(2)
+            # day 保持 'XX'
         else:
-            day_match = re.search(r'(\d{1,2})[日号]', raw_text)
-            if day_match:
-                day = day_match.group(1).zfill(2)
+            # 模式 C: 仅年份 YYYY年
+            year_match = re.search(r'(\d{4})年', raw_text)
+            if year_match:
+                year = year_match.group(1)
+                # month 和 day 保持 'XX'
+            else:
+                # 模式 D: 月日格式 MM-DD (或 M月D日)
+                month_day_match = re.search(r'(\d{1,2})[月/-](\d{1,2})[日号]?', raw_text)
+                if month_day_match:
+                    month = month_day_match.group(1).zfill(2)
+                    day = month_day_match.group(2).zfill(2)
+                    # year 保持 'XXXX'
+                else:
+                    # 模式 E: 仅日期 D日
+                    day_match = re.search(r'(\d{1,2})[日号]', raw_text)
+                    if day_match:
+                        day = day_match.group(1).zfill(2)
+                        # year 和 month 保持 'XXXX', 'XX'
 
-    # 提取时分秒
+    # --- 2. 提取时分秒 ---
+
+    # 模式 A: 完整时间 HH:MM:SS (或 H点M分S秒)
     time_match = re.search(r'(\d{1,2})[:：时点](\d{1,2})[:：分]?(\d{1,2})?秒?', raw_text)
     if time_match:
         h, m, s = time_match.groups()
-        hour = h.zfill(2)
-        minute = m.zfill(2)
-        if s:
-            second = s.zfill(2)
-    else: # 处理 "下午3点半" 这种格式
+        if h: hour = h.zfill(2)
+        if m: minute = m.zfill(2)
+        if s: second = s.zfill(2)
+        else: second = '00' # 如果没有秒，则补00
+    else:
+        # 模式 B: 小时+半点，例如 "3点半"
         hour_match = re.search(r'(\d{1,2})[:：时点]', raw_text)
         if hour_match:
             hour = hour_match.group(1)
             if '半' in raw_text:
                 minute = '30'
+            else:
+                minute = '00' # 如果只有小时，分钟补00
+            second = '00' # 秒补00
 
-    # 处理上午/下午
+    # --- 3. 处理上午/下午/晚上 ---
     if hour != 'XX' and int(hour) <= 12:
         if '下午' in raw_text or '晚上' in raw_text:
-            if int(hour) < 12:
+            if int(hour) < 12: # 12点下午还是12点
                 hour = str(int(hour) + 12)
         elif '上午' in raw_text:
-             hour = hour.zfill(2)
+             hour = hour.zfill(2) # 确保上午时间是两位数，如 09
 
     if hour != 'XX':
         hour = hour.zfill(2)
 
-    # 根据实体类型组合最终结果
-    if entity_type == '日期':
-        if year == 'XXXX' and month == 'XX' and day == 'XX':
-            return "" # 无效日期
-        return f"{year}-{month}-{day}"
-    
-    if entity_type == '时间':
-        has_date = not (year == 'XXXX' and month == 'XX' and day == 'XX')
-        has_time = not (hour == 'XX' and minute == 'XX' and second == 'XX')
-        
-        if not has_date and not has_time:
-            return "" # 无效时间
+    # --- 4. 根据实体类型组合最终结果 ---
+    has_date_info = not (year == 'XXXX' and month == 'XX' and day == 'XX')
+    has_time_info = not (hour == 'XX' and minute == 'XX' and second == 'XX')
 
-        if has_date and has_time:
-            return f"{year}-{month}-{day} {hour}:{minute}:{second}"
-        elif has_time:
-            return f"{hour}:{minute}:{second}"
-        elif has_date: # 如果只抽取出日期，但类型是“时间”，也格式化输出
-            return f"{year}-{month}-{day} {hour}:{minute}:{second}"
-        
-    return raw_text # 对于其他类型，返回原始文本
+    # 如果没有任何有效的时间/日期信息被解析出来，则返回空
+    if not has_date_info and not has_time_info:
+        return ""
+
+    if entity_type == '日期':
+        if day != 'XX':
+            return f"{year}-{month}-{day}"
+        elif month != 'XX':
+            return f"{year}-{month}-XX" # 允许返回 YYYY-MM-XX 或 XXXX-MM-XX
+        elif year != 'XXXX':
+            return f"{year}-XX-XX" # 允许返回 YYYY-XX-XX
+        else:
+            return "" # 如果连年/月都没有，则认为抽取失败
+
+    if entity_type == '时间':
+        date_part = ""
+        if day != 'XX':
+            date_part = f"{year}-{month}-{day}"
+        elif month != 'XX':
+            date_part = f"{year}-{month}-XX"
+        elif year != 'XXXX':
+            date_part = f"{year}-XX-XX"
+
+        time_part = f"{hour}:{minute}:{second}" if has_time_info else ""
+
+        if date_part and time_part:
+            return f"{date_part} {time_part}"
+        elif has_time_info:
+            return time_part
+        elif date_part: # 如果只有日期部分
+            return f"{date_part} {hour}:{minute}:{second}"
+
+    return raw_text # 对于其他类型或无法解析的情况，返回原始文本
 
 async def _extract_single_entity_type(text: str, entity_type: str, model_info: ModelInfo) -> List[EntityResult]:
     """对单一实体类型进行抽取。"""
@@ -238,7 +280,9 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
             user_prompt=user_prompt,
             model_info=model_info
         )
-        
+        print(f"--- LLM Raw Response for '{entity_type}' ---")
+        print(response_text)
+        print("------------------------------------------")
         # 优先尝试从Markdown代码块中提取
         match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_text, re.DOTALL)
         if match:
@@ -281,6 +325,7 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
             if isinstance(name, str) and name and str(name).lower() != 'none' and str(name) != '未知':
                 # 对时间和日期进行后处理
                 if entity_type in ["时间", "日期"]:
+                    print(f"Raw extracted {entity_type}: {name}")
                     normalized_name = _normalize_datetime_output(name, entity_type)
                     if normalized_name: # 只有在规范化后非空才添加
                         results.append(EntityResult(type=entity_type, name=normalized_name))
