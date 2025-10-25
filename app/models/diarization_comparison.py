@@ -27,10 +27,10 @@ class DiarizationComparisonResult(BaseModel):
     segment_audio_file: str = Field(..., description="切分后的音频文件名")
     calling_called: str = Field(..., description="主叫或被叫 ('calling' 或 'called')")
     cluster_id: int = Field(..., description="该音频片段所属的聚类ID")
-    top_match_speaker: str = Field(..., description="相似度最高的person_id") 
-    top_match_similarity: float = Field(..., description="与最相似说话人的余弦相似度（0-1）")  
+    top_match_speaker: Optional[str] = Field(..., description="相似度最高的person_id") 
+    top_match_similarity: Optional[float] = Field(..., description="与最相似说话人的余弦相似度（0-1）")  
     compare_result: List[ComparisonResultDetail] = Field(..., description="与数据库中所有person_id的相似度计算结果")
-    # is_accepted: bool = Field(..., description="是否通过相似度阈值判断")  
+    # is_accepted: bool = Field(..., description="是否通过相似度阈值判断") 
 
 class DiarizationComparisonResponseData(BaseModel):
     collection_name: str = Field(..., description="参与比较的目标说话人声纹库")

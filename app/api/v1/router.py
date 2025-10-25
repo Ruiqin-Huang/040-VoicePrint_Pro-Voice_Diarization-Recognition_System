@@ -3,6 +3,8 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import speech_recognition, speech_segmentation, entity_extraction, event_argument_extraction, language_detection, image_ocr, translation, audio_registration, diarization_comparison
 # 实体抽取测试用
 # from app.api.v1.endpoints import entity_extraction, event_argument_extraction
+# 分割/比较用
+# from app.api.v1.endpoints import diarization_comparison
 
 api_router = APIRouter()
 
