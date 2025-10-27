@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # 应用基本配置
     APP_NAME: str = "语音处理服务"
     DEBUG: bool = True
-    PORT: int = 8765
+    PORT: int = 8766
     
     # 模型路径配置
     MODEL_DIR: str = "./pretrained_models"
@@ -88,6 +88,8 @@ embedding_model:
     MILVUS_HOST: str = "10.108.17.241"
     MILVUS_PORT: str = "19530"
     MILVUS_COLLECTION: str = "voiceprint_db"
+
+    PADDLEOCR_PYTHON_EXEC: str = "~/.conda/envs/paddleocr/bin/python"
 
     class Config:
         case_sensitive = True

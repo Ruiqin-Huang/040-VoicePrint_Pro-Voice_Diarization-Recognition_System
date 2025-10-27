@@ -56,6 +56,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制项目文件
 COPY . .
 
+# 安装PaddleOCR及其依赖
+RUN bash ./install_paddleocr.sh
+
 # 创建数据目录结构
 RUN mkdir -p workspace/dataset \
     workspace/vad \

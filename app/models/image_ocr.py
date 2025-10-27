@@ -15,14 +15,13 @@ class ImageOCRRequest(BaseModel):
 class OCRTextBox(BaseModel):
     """
     单个文本框的OCR识别结果
+    :param text: 识别出的内容类别标签
     :param text: 识别出的文字内容
-    :param confidence: 置信度
-    :param position: 文本框的矩形顶点坐标列表
+    :param int: 文本框在文件中的顺序
     :param box: 文本框的矩形边界坐标
     """
+    label: str
     text: str
-    confidence: float
-    position: List[List[int]]
     box: List[int]
 
 class OCRPage(BaseModel):

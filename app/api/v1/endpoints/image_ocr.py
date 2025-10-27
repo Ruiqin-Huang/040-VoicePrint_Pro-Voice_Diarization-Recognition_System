@@ -1,11 +1,13 @@
+import asyncio
+import json
 from fastapi import APIRouter, Depends, HTTPException
 import traceback
 from typing import List
 
 from app.models.common import ResponseResult
 from app.models.image_ocr import ImageOCRRequest, OCRTextBox, OCRPage, OCResponseData
-from app.services.image_ocr import process_ocr_files
 from app.core.error_codes import ResponseCode
+from app.worker.ocr_worker import ocr_worker
 
 router = APIRouter(prefix="/api")
 
@@ -21,7 +23,7 @@ async def image_ocr(requests: ImageOCRRequest):
                 data=None
             )
         
-        processed_files, invalid_files = await process_ocr_files(requests.files)
+        processed_files, invalid_files = await ocr_worker.send(requests.files)
         
         if not processed_files:
             if invalid_files:
@@ -48,9 +50,8 @@ async def image_ocr(requests: ImageOCRRequest):
                         page=str(page_result["page"]),
                         content=[                        
                             OCRTextBox(
+                                label=box_result["label"],
                                 text=box_result["text"],
-                                confidence=box_result["confidence"],
-                                position=box_result["position"],
                                 box=box_result["box"]
                             )
                             for box_result in page_result["content"]

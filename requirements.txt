@@ -20,7 +20,7 @@ matplotlib
 openpyxl
 numba==0.58.1
 umap-learn
-modelscope
+modelscope==1.20.0
 funasr
 transformers
 hdbscan
@@ -30,15 +30,15 @@ python_speech_features
 onnxruntime-gpu
 pyannote.audio
 addict
-datasets
+datasets==3.0.0
 simplejson
 pydub
 requests
 fasttext
---extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
-paddlepaddle==3.0.0
-paddleocr==3.1.0
-paddlex==3.1.3
+# --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
+# paddlepaddle==3.0.0
+# paddleocr==3.1.0
+# paddlex==3.1.3
 albumentations==1.3.1
 # ADD: SeqGPT依赖（用于NER及EE任务）
 # 已安装：transformers==4.28.1

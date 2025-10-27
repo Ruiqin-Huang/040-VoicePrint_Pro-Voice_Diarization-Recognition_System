@@ -1,32 +1,37 @@
+import asyncio
 import os
+import re
 import uuid
 import json
 import requests
 import tempfile
 from tqdm import tqdm
 from urllib.parse import urlparse
-from typing import List, Dict, Tuple
-from paddleocr import PaddleOCR
+from typing import List, Dict, Tuple, Optional
+from paddleocr import PaddleOCRVL
 from PIL import Image
 import numpy as np
 import cv2
+import sys
+import importlib.util
 
-from app.config.settings import settings
-from app.models.file_request import FileRequest
+# from app.config.settings import settings
+# from app.models.file_request import FileRequest
 from utils.io_suppressor import suppress_stdout_stderr
 
-with suppress_stdout_stderr():
-    # 全局加载PaddleOCR模型（建议单例）
-    OCR_ENGINE = PaddleOCR(
-        text_detection_model_dir='./pretrained_models/paddleocr/PP-OCRv5_server_det',
-        text_recognition_model_dir='./pretrained_models/paddleocr/PP-OCRv5_server_rec',
-        # textline_orientation_model_dir='./pretrained_models/paddleocr/PP-LCNet_x1_0_textline_ori',
-        use_textline_orientation=False,
-        use_doc_orientation_classify=False,
-        use_doc_unwarping=False,
-        device="gpu" if settings.USE_GPU else "cpu"
-        # ocr_version="PP-OCRv5"  # 明确指定版本
-    )
+try:
+    with suppress_stdout_stderr():
+        OCR_ENGINE = PaddleOCRVL(
+            vl_rec_model_dir='./pretrained_models/paddleocr/PP-OCR-VL_rec', 
+            vl_rec_backend='native',
+            layout_detection_model_name="PP-DocLayoutV2",
+            layout_detection_model_dir="./pretrained_models/paddleocr/PP-OCR-VL_rec/PP-DocLayoutV2",
+            format_block_content=True
+        )
+except Exception as e:
+    print(f"OCR Engine failed: {e}", flush=True)
+    sys.exit(1)
+print("OCR Engine started", flush=True)
 
 async def is_url(path: str) -> bool:
     """检查路径是否为URL（与原架构一致）"""
@@ -81,6 +86,8 @@ async def recognize_text(image_path: str):
 
         # 结构化输出
         formatted_results = []
+        lines = []
+
         for i, page in enumerate(result, start=1):  # 支持多页文档
             formatted_page = []
             # page.print()
@@ -90,22 +97,29 @@ async def recognize_text(image_path: str):
             # else:
             #     print("No, 对象属性:", dir(page))  # 显示所有方法和属性
 
-            for item in page['rec_texts']:
-                # 获取对应文本的索引
-                idx = page['rec_texts'].index(item)
+            for item in page['parsing_res_list']:
                 
                 formatted_page.append({
-                    "text": item,
-                    "confidence": page['rec_scores'][idx],
-                    "position": page['rec_polys'][idx].tolist(),
-                    "box": page['rec_boxes'][idx].tolist()
+                    "label": item.label,
+                    "text": item.content,
+                    # "order": item['block_order'],
+                    "box": item.bbox
                 })
-            
-            formatted_results.append({
-                "page": i,
-                "content": formatted_page,
-                "total_text": " ".join([r["text"] for r in formatted_page])
-            })
+
+                if item.label == 'doc_title':
+                    lines.append(item.content)
+                    lines.append("")
+                else:
+                    if lines:
+                        lines[-1] += item.content + " "
+                    else:
+                        lines.append(item.content)
+                
+                formatted_results.append({
+                    "page": i,
+                    "content": formatted_page,
+                    "total_text": "\n".join(lines)
+                })
         
         return formatted_results
     
@@ -124,8 +138,8 @@ async def process_ocr_files(file_requests: List[Dict]):
 
     for file_request in tqdm(file_requests, desc="Processing OCR files"):
         try:
-            file_id = file_request.id
-            file_path = file_request.file_path
+            file_id = file_request['id']
+            file_path = file_request['file_path']
             
             # 处理URL或本地路径
             local_path = file_path
@@ -174,15 +188,24 @@ async def process_ocr_files(file_requests: List[Dict]):
 #     )
 #     vis.save(output_path)
 
-# 使用示例
+# loop = asyncio.get_event_loop()
+
 async def main():
-    test_requests = [
-         FileRequest(id="1", file_path='./readme_assets/说话人分割系统.png')
-    ]
     
-    results, errors = await process_ocr_files(test_requests)
-    print(f"成功: {len(results)} 个, 失败: {len(errors)} 个")
-    print(results)
+    # # 使用示例
+    # output = OCR_ENGINE.predict("./data/16372762f1fbface6e8b828ad56e89a9.jpg")
+    # print(output)
+    # for res in output:
+    #     res.print() ## 打印预测的结构化输出
+    #     res.save_to_json(save_path="output") ## 保存当前图像的结构化json结果
+    #     res.save_to_markdown(save_path="output") ## 保存当前图像的markdown格式的结果
+    # test_requests = [
+    #      FileRequest(id="1", file_path='./readme_assets/说话人分割系统.png')
+    # ]
+    
+    # results, errors = await process_ocr_files(test_requests)
+    # print(f"成功: {len(results)} 个, 失败: {len(errors)} 个")
+    # print(results)
     
     # # 可视化第一个结果
     # if results:
@@ -192,6 +215,27 @@ async def main():
     #         "ocr_result_visualization.jpg"
     #     )
 
+    for line in sys.stdin:
+        try:
+            if not line.strip():
+                continue
+            files = json.loads(line.strip())
+            # print("Received OCR request for files:", files, flush=True)
+            processed_files, invalid_files = await process_ocr_files(files)
+
+            response = {
+                "status": "ok",
+                "processed_files": processed_files,
+                "invalid_files": invalid_files
+            }
+        except Exception as e:
+            response = {
+                "status": "error",
+                "msg": str(e)
+            }
+        # 写回主进程
+        sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
+        sys.stdout.flush()
+
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

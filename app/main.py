@@ -7,6 +7,7 @@ import subprocess
 from app.api.v1.router import api_router
 from app.config.settings import settings
 from app.config.path_mapper import PathMapper
+from app.worker.ocr_worker import ocr_worker
 
 from contextlib import asynccontextmanager
 from app.llm import llm_client
@@ -28,10 +29,17 @@ async def lifespan(app: FastAPI):
         print("Pre-loading local Hugging Face model...")
         llm_client.get_local_hf_pipeline() # 显式调用HF pipeline加载
         print("Model loaded.")
+
+    # 开启 OCR 子进程
+    global worker_process
+    print("Pre-loading OCR subprocess in paddleocr...")
+    ocr_worker.start()
+
     yield
+    print("Shutting down OCR subprocess...")
+    ocr_worker.stop()
+
     print("Application shutting down.")
-
-
 app = FastAPI(
     title="VoicePrintPro_API",
     description="提供语音分割和语音识别功能的API服务",

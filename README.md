@@ -68,6 +68,15 @@
     # pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
+3. **安装图像OCR独立环境**：
+    ```bash
+    # 打开项目目录
+    cd /path/to/your/VoicePrint_Pro
+
+    # 创建环境并安装依赖
+    ./install_paddleocr.sh
+    ···
+
 ### 参数说明
 
 使用以下命令执行`run_audio_diarization-cluster.sh`脚本：
@@ -1615,9 +1624,8 @@ API响应使用JSON格式，包含以下字段：
 **content 文本框对象结构：**
 | 字段名 | 类型 | 说明 |
 | ------ | ---- | ---- |
+| label | String | 识别出的内容类别标签 |
 | text | String | 识别出的文字内容 |
-| confidence | Float | 识别置信度 |
-| position | Array[Array[Float]] | 文本框矩形顶点的坐标列表 |
 | box | Array[Float] | 文本框矩形边界坐标 |
 
 成功响应示例：
@@ -1634,15 +1642,13 @@ API响应使用JSON格式，包含以下字段：
                     "page": "1",
                     "content": [
                         {
+                            "label": "doc_title",
                             "text": "Hello World",
-                            "confidence": 0.95,
-                            "position": [[105, 203], [120, 203], [120, 401], [105, 401]],
                             "box": [105, 203, 120, 401]
                         },
                         {
+                            "label": "text",
                             "text": "OCR Recognition",
-                            "confidence": 0.92,
-                            "position": [[150, 500], [200, 500], [200, 650], [150, 650]],
                             "box": [150, 500, 200, 650]
                         }
                     ],
