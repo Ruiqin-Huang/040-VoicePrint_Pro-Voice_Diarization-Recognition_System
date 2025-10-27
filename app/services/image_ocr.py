@@ -9,11 +9,9 @@ from tqdm import tqdm
 from urllib.parse import urlparse
 from typing import List, Dict, Tuple, Optional
 from paddleocr import PaddleOCRVL
-from PIL import Image
 import numpy as np
 import cv2
 import sys
-import importlib.util
 
 # from app.config.settings import settings
 # from app.models.file_request import FileRequest
@@ -77,12 +75,10 @@ async def recognize_text(image_path: str):
     :return: 结构化识别结果
     """
     try:
-        # 动态切换语言模型
+        # 全局加载模型
         global OCR_ENGINE
         
         result = OCR_ENGINE.predict(input=image_path)
-        # for res in result:
-        #     res.print()
 
         # 结构化输出
         formatted_results = []
@@ -115,11 +111,11 @@ async def recognize_text(image_path: str):
                     else:
                         lines.append(item.content)
                 
-                formatted_results.append({
-                    "page": i,
-                    "content": formatted_page,
-                    "total_text": "\n".join(lines)
-                })
+            formatted_results.append({
+                "page": i,
+                "content": formatted_page,
+                "total_text": "\n".join(lines)
+            })
         
         return formatted_results
     
@@ -188,10 +184,7 @@ async def process_ocr_files(file_requests: List[Dict]):
 #     )
 #     vis.save(output_path)
 
-# loop = asyncio.get_event_loop()
-
 async def main():
-    
     # # 使用示例
     # output = OCR_ENGINE.predict("./data/16372762f1fbface6e8b828ad56e89a9.jpg")
     # print(output)
