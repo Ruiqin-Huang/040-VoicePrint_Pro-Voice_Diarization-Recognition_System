@@ -11,6 +11,9 @@ class OCRWorker:
         self.ocr_module = ocr_module
         self.process = None
         self.python_exec = os.path.expanduser(settings.PADDLEOCR_PYTHON_EXEC)
+        
+        self.env = os.environ.copy()
+        self.env["CUDA_VISIBLE_DEVICES"] = str(settings.GPU_ID)
 
     def start(self):
         if self.process is None:
@@ -20,7 +23,8 @@ class OCRWorker:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1
+                bufsize=1,
+                env=self.env
             )
             # 等待子进程启动信号
             print("OCR Worker response:", self.process.stdout.readline())
@@ -35,6 +39,7 @@ class OCRWorker:
             raise RuntimeError("OCR worker process has exited")
 
         # 发送请求
+        # print(json.dumps([item.dict() for item in data]))
         self.process.stdin.write(json.dumps([item.dict() for item in data], ensure_ascii=False) + "\n")
         self.process.stdin.flush()
 

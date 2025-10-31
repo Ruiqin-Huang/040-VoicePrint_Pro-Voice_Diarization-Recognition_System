@@ -1,8 +1,10 @@
 import asyncio
+import gc
 import os
 import re
 import uuid
 import json
+import paddle
 import requests
 import tempfile
 from tqdm import tqdm
@@ -226,6 +228,16 @@ async def main():
                 "status": "error",
                 "msg": str(e)
             }
+        
+        finally:
+            # 每次OCR任务结束后，强制释放显存
+            gc.collect()
+        try:
+            paddle.device.cuda.empty_cache()
+            paddle.device.cuda.synchronize()
+        except Exception:
+            pass
+
         # 写回主进程
         sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
         sys.stdout.flush()
