@@ -13,7 +13,8 @@ class OCRWorker:
         self.python_exec = os.path.expanduser(settings.PADDLEOCR_PYTHON_EXEC)
         
         self.env = os.environ.copy()
-        self.env["CUDA_VISIBLE_DEVICES"] = str(settings.GPU_ID)
+        self.env["CUDA_VISIBLE_DEVICES"] = str(settings.OCR_GPU_ID)
+        self.env["FLAGS_allocator_strategy"] = "naive_best_fit"
 
     def start(self):
         if self.process is None:
@@ -39,7 +40,7 @@ class OCRWorker:
             raise RuntimeError("OCR worker process has exited")
 
         # 发送请求
-        # print(json.dumps([item.dict() for item in data]))
+        print("Current OCR Files:", json.dumps([item.dict() for item in data]))
         self.process.stdin.write(json.dumps([item.dict() for item in data], ensure_ascii=False) + "\n")
         self.process.stdin.flush()
 
