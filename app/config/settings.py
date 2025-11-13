@@ -1,7 +1,7 @@
 import os
 # from pydantic import BaseSettings
 from pydantic_settings import BaseSettings
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 class Settings(BaseSettings):
     # 应用基本配置
@@ -49,7 +49,9 @@ class Settings(BaseSettings):
     
     # GPU设置
     USE_GPU: bool = True
-    GPU_ID: int = 3
+    GPU_ID: int = 6
+
+    OCR_GPU_ID: List[int] = [6, 1]
     
     # Milvus配置
     MILVUS_COLLECTION = "voiceprint_db" # 默认插入的Milvus集合名称

@@ -7,7 +7,7 @@ import subprocess
 from app.api.v1.router import api_router
 from app.config.settings import settings
 from app.config.path_mapper import PathMapper
-from app.worker.ocr_worker import ocr_worker
+from app.worker.ocr_worker import ocr_worker_pool
 
 from contextlib import asynccontextmanager
 from app.llm import llm_client
@@ -33,11 +33,11 @@ async def lifespan(app: FastAPI):
     # 开启 OCR 子进程
     global worker_process
     print("Pre-loading OCR subprocess in paddleocr...")
-    ocr_worker.start()
+    ocr_worker_pool.start()
 
     yield
     print("Shutting down OCR subprocess...")
-    ocr_worker.stop()
+    ocr_worker_pool.stop()
 
     print("Application shutting down.")
 app = FastAPI(

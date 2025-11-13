@@ -1612,6 +1612,13 @@ API响应使用JSON格式，包含以下字段：
 | ------ | ---- | ---- |
 | file_id | String | 文件唯一标识 |
 | file_path | String | 文件原始路径 |
+| ocr_path | String | OCR识别结果的JSON文件路径 |
+
+**识别结果 JSON 文件中的对象结构：**
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| file_id | String | 文件唯一标识 |
+| file_path | String | 文件原始路径 |
 | ocr_results | Array[Object] | OCR识别结果，可以包含多个页面信息（如pdf文件） |
 
 **ocr_results 页面对象结构：**
@@ -1637,24 +1644,7 @@ API响应使用JSON格式，包含以下字段：
         {
             "file_id": "1",
             "file_path": "./test.png",
-            "ocr_results": [
-                {
-                    "page": "1",
-                    "content": [
-                        {
-                            "label": "doc_title",
-                            "text": "Hello World",
-                            "box": [105, 203, 120, 401]
-                        },
-                        {
-                            "label": "text",
-                            "text": "OCR Recognition",
-                            "box": [150, 500, 200, 650]
-                        }
-                    ],
-                    "total_text": "Hello World OCR Recognition"
-                }
-            ]
+            "ocr_path": "./output/image_ocr/test.json"
         }
     ]
 }
@@ -1662,12 +1652,12 @@ API响应使用JSON格式，包含以下字段：
 
 ### 翻译接口
 
-实现文本翻译功能，根据上传的文本文件或OCR识别结果进行多语言翻译。
+实现文本翻译功能，根据上传的文本或OCR识别结果进行多语言翻译。
 
 - **URL**: `/api/translation`
 - **方法**: POST
 - **请求格式**: application/json
-- **功能**: 接收待翻译文件列表和翻译配置，对每个文件进行翻译处理，返回翻译结果。
+- **功能**: 接收待翻译文本列表和翻译配置，对每段文本进行翻译处理，返回翻译结果。
 
 #### 请求参数
 
@@ -1677,7 +1667,7 @@ API响应使用JSON格式，包含以下字段：
 | text | Array[String] | 是 | 待翻译文本列表 |
 | source_lang | String | 是 | 源语言代码，如 'en'(英文)、'zh'(中文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文) |
 | target_lang | String | 是 | 目标语言代码，如 'zh'(中文)、'en'(英文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文) |
-| model_name | String | 否 | 翻译模型选项，可选值包括 'm2m100'(默认)、'small100' |
+| model_type | String | 否 | 翻译模型选项，可选值包括 'm2m100'(默认)、'small100' |
 
 请求体示例：
 ```json
@@ -1687,7 +1677,7 @@ API响应使用JSON格式，包含以下字段：
   ],
   "source_lang": "en",
   "target_lang": "zh",
-  "model_name": "m2m100"
+  "model_type": "m2m100"
 }
 ```
 
@@ -1710,7 +1700,7 @@ API响应使用JSON格式，包含以下字段：
 | target_lang | String | 目标语言代码 |
 | target_lang_name | String | 目标语言中文名称 |
 | translated_text | String | 翻译结果全文 |
-| model_name | String | 使用的翻译模型标识 |
+| model_type | String | 使用的翻译模型标识 |
 
 成功响应示例：
 ```json
@@ -1725,7 +1715,7 @@ API响应使用JSON格式，包含以下字段：
             "target_lang": "zh", 
             "target_lang_name": "中文",
             "translated_text": "你好，这是一个用于翻译的英文文档。",
-            "model_name": "m2m100"
+            "model_type": "m2m100"
         }
     ]
 }

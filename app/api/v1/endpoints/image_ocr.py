@@ -7,7 +7,7 @@ from typing import List
 from app.models.common import ResponseResult
 from app.models.image_ocr import ImageOCRRequest, OCRTextBox, OCRPage, OCResponseData
 from app.core.error_codes import ResponseCode
-from app.worker.ocr_worker import ocr_worker
+from app.worker.ocr_worker import ocr_worker_pool
 
 router = APIRouter(prefix="/api")
 
@@ -23,7 +23,7 @@ async def image_ocr(requests: ImageOCRRequest):
                 data=None
             )
         
-        processed_files, invalid_files = await ocr_worker.send(requests.files)
+        processed_files, invalid_files = await ocr_worker_pool.send(requests.files)
         
         if not processed_files:
             if invalid_files:
@@ -42,29 +42,29 @@ async def image_ocr(requests: ImageOCRRequest):
         # 将服务层返回的结果转换为响应格式
         response_data = []
         for result in processed_files:
-            ocr_pages = []
+            # ocr_pages = []
             
-            for page_result in result["ocr_results"]:
-                ocr_pages.append(
-                    OCRPage(
-                        page=str(page_result["page"]),
-                        content=[                        
-                            OCRTextBox(
-                                label=box_result["label"],
-                                text=box_result["text"],
-                                box=box_result["box"]
-                            )
-                            for box_result in page_result["content"]
-                        ],
-                        total_text=page_result["total_text"]
-                    )
-                )
+            # for page_result in result["ocr_results"]:
+            #     ocr_pages.append(
+            #         OCRPage(
+            #             page=str(page_result["page"]),
+            #             content=[                        
+            #                 OCRTextBox(
+            #                     label=box_result["label"],
+            #                     text=box_result["text"],
+            #                     box=box_result["box"]
+            #                 )
+            #                 for box_result in page_result["content"]
+            #             ],
+            #             total_text=page_result["total_text"]
+            #         )
+            #     )
             
             response_data.append(
                 OCResponseData(
                     file_id=result["file_id"],
                     file_path=result["file_path"],
-                    ocr_results=ocr_pages
+                    ocr_path=result["ocr_path"]
                 )
             )
         

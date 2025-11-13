@@ -134,6 +134,10 @@ async def process_ocr_files(file_requests: List[Dict]):
     invalid_files = []
     temp_files = []
 
+    # 创建输出目录
+    output_dir = "./data/output/image_ocr"
+    os.makedirs(output_dir, exist_ok=True)
+
     for file_request in tqdm(file_requests, desc="Processing OCR files"):
         try:
             file_id = file_request['id']
@@ -152,16 +156,30 @@ async def process_ocr_files(file_requests: List[Dict]):
             
             # 执行OCR
             ocr_results = await recognize_text(local_path)
+
+            # 生成输出文件名
+            filename = os.path.basename(file_path)
+            output_filename = os.path.splitext(filename)[0] + ".json"
+            output_path = os.path.join(output_dir, output_filename)
+
+            output_data = {
+                "file_id": file_id,
+                "file_path": file_path,
+                "ocr_results": ocr_results
+            }
+                        
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(output_data, f, ensure_ascii=False, indent=2)
             
             processed_files.append({
                 "file_id": file_id,
                 "file_path": file_path,
-                "ocr_results": ocr_results
+                "ocr_path": output_path
             })
             # print(processed_files)
 
             # 显存释放
-            del ocr_results
+            del ocr_results, output_data
             paddle.device.cuda.synchronize()  # 等待GPU完成
             paddle.device.cuda.empty_cache()
             gc.collect()

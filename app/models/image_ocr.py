@@ -40,8 +40,8 @@ class OCResponseData(BaseModel):
     单个文件的OCR识别结果
     :param file_id: 文件ID
     :param file_path: 文件路径
-    :param ocr_results: 多个页面识别结果
+    :param ocr_path: 识别结果文件路径
     """
     file_id: str
     file_path: str
-    ocr_results: List[OCRPage]
+    ocr_path: str
