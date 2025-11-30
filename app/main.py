@@ -12,6 +12,7 @@ from app.worker.ocr_worker import ocr_worker_pool
 from contextlib import asynccontextmanager
 from app.llm import llm_client
 from app.api.v1.router import api_router
+from app.llm.llm_client import close_http_client
 
 def auto_detect_mappings() -> tuple:
     """自动识别输入输出路径映射"""
@@ -38,6 +39,9 @@ async def lifespan(app: FastAPI):
     yield
     print("Shutting down OCR subprocess...")
     ocr_worker_pool.stop()
+    
+    print("Closing HTTP client connections...")
+    await close_http_client()
 
     print("Application shutting down.")
 app = FastAPI(

@@ -3,10 +3,14 @@ import re
 import asyncio
 from typing import List, Dict, Optional
 from datetime import datetime
+import logging
 
 from app.llm import llm_client
 from app.models.entity_extraction import EntityResult
 from app.models.common import ModelInfo
+from app.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 # --- Prompts Definition ---
 
@@ -253,33 +257,110 @@ def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
 
     return raw_text # 对于其他类型或无法解析的情况，返回原始文本
 
+def _truncate_text(text: str, max_length: int) -> str:
+    """截断文本到指定长度，保留完整句子"""
+    if len(text) <= max_length:
+        return text
+    
+    # 尝试在句号、问号、感叹号处截断
+    truncated = text[:max_length]
+    last_period = max(
+        truncated.rfind('。'),
+        truncated.rfind('！'),
+        truncated.rfind('？'),
+        truncated.rfind('.'),
+        truncated.rfind('!'),
+        truncated.rfind('?')
+    )
+    
+    if last_period > max_length * 0.8:  # 如果找到的标点在80%位置之后，使用该位置
+        return truncated[:last_period + 1]
+    
+    return truncated + "..."
+
+def _split_text_into_chunks(text: str, chunk_size: int, overlap: int) -> List[str]:
+    """将长文本分割成多个块，保留重叠部分"""
+    if len(text) <= chunk_size:
+        return [text]
+    
+    chunks = []
+    start = 0
+    
+    while start < len(text):
+        end = start + chunk_size
+        
+        # 如果不是最后一块，尝试在句子边界处截断
+        if end < len(text):
+            # 在块末尾附近查找句子边界
+            search_start = max(start, end - overlap)
+            boundary = max(
+                text.rfind('；', search_start, end),
+                text.rfind('，', search_start, end),
+                text.rfind('、', search_start, end),
+                text.rfind('：', search_start, end),
+                text.rfind('。', search_start, end),
+                text.rfind('！', search_start, end),
+                text.rfind('？', search_start, end),
+                text.rfind('.', search_start, end),
+                text.rfind(',', search_start, end),
+                text.rfind('!', search_start, end),
+                text.rfind('?', search_start, end)
+            )
+            
+            if boundary > search_start:
+                end = boundary + 1
+        
+        chunks.append(text[start:end])
+        start = end - overlap  # 重叠部分
+        
+        if start >= len(text):
+            break
+    
+    return chunks
+
 async def _extract_single_entity_type(text: str, entity_type: str, model_info: ModelInfo) -> List[EntityResult]:
     """对单一实体类型进行抽取。"""
-    # 从定义字典中获取实体定义，如果不存在则使用通用描述
-    entity_definition = ENTITY_DEFINITIONS.get(entity_type, f"指代“{entity_type}”的词语或短语。")
-    
-    # 为时间和日期选择专用prompt
-    if entity_type in ["时间", "日期"]:
-        user_prompt = TIME_DATE_EXTRACTION_PROMPT.format(
-            text=text,
-            entity_type=entity_type,
-            entity_definition=entity_definition
-        )
-    else:
-        user_prompt = ENTITY_EXTRACTION_PROMPT.format(
-            text=text,
-            entity_type=entity_type,
-            entity_definition=entity_definition
-        )
-
-    response_text = ""
-    parsed_json = {}
     try:
-        response_text = await llm_client.generate_text(
-            system_prompt=SYSTEM_PROMPT, 
-            user_prompt=user_prompt,
-            model_info=model_info
-        )
+        # 截断过长的文本
+        max_text_length = settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH
+        if len(text) > max_text_length:
+            logger.warning(f"文本长度 {len(text)} 超过限制 {max_text_length}，将被截断")
+            text = _truncate_text(text, max_text_length)
+        
+        # 从定义字典中获取实体定义，如果不存在则使用通用描述
+        entity_definition = ENTITY_DEFINITIONS.get(entity_type, f'指代"{entity_type}"的词语或短语。')
+        
+        # 为时间和日期选择专用prompt
+        if entity_type in ["时间", "日期"]:
+            user_prompt = TIME_DATE_EXTRACTION_PROMPT.format(
+                text=text,
+                entity_type=entity_type,
+                entity_definition=entity_definition
+            )
+        else:
+            user_prompt = ENTITY_EXTRACTION_PROMPT.format(
+                text=text,
+                entity_type=entity_type,
+                entity_definition=entity_definition
+            )
+
+        # 添加超时控制
+        response_text = ""
+        try:
+            response_text = await asyncio.wait_for(
+                llm_client.generate_text(
+                    system_prompt=SYSTEM_PROMPT, 
+                    user_prompt=user_prompt,
+                    model_info=model_info
+                ),
+                timeout=settings.ENTITY_EXTRACTION_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"实体类型 '{entity_type}' 抽取超时（超过{settings.ENTITY_EXTRACTION_TIMEOUT}秒）")
+            return []
+        except Exception as e:
+            logger.error(f"实体类型 '{entity_type}' LLM调用失败: {str(e)}")
+            return []
         
         # 优先尝试从Markdown代码块中提取
         match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_text, re.DOTALL)
@@ -292,7 +373,12 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
         cleaned_str = _clean_json_string(content_str.strip())
 
         # 尝试直接解析清理后的字符串
-        parsed_data = json.loads(cleaned_str)
+        try:
+            parsed_data = json.loads(cleaned_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"实体类型 '{entity_type}' JSON解析失败: {str(e)}")
+            logger.debug(f"原始响应: {response_text[:500]}...")  # 只记录前500字符
+            return []
 
         # 判断解析结果是列表还是字典
         if isinstance(parsed_data, list):
@@ -303,19 +389,18 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
             parsed_json = parsed_data
         else:
             # 如果是其他类型（数字、字符串等），视为无效
-            raise json.JSONDecodeError("Parsed JSON is not a list or a dict", cleaned_str, 0)
+            logger.warning(f"实体类型 '{entity_type}' 解析结果不是列表或字典: {type(parsed_data)}")
+            return []
 
     except Exception as e:
-        print(f"Error processing entity type '{entity_type}': {e}")
-        print(f"Original LLM response for entity type '{entity_type}':\n{response_text}")
-        # 如果解析失败，返回空列表
+        logger.error(f"处理实体类型 '{entity_type}' 时发生错误: {str(e)}", exc_info=True)
         return []
 
     # --- 结果转换与校验 ---
     try:
         entity_names = parsed_json.get("entities", [])
         if not isinstance(entity_names, list):
-            print(f"Warning: 'entities' field is not a list for type '{entity_type}'. Found: {type(entity_names)}")
+            logger.warning(f"实体类型 '{entity_type}' 的 'entities' 字段不是列表: {type(entity_names)}")
             return []
         
         results = []
@@ -331,7 +416,7 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
         return results
 
     except Exception as e:
-        print(f"Error converting parsed JSON to model for entity type '{entity_type}': {e}")
+        logger.error(f"转换实体类型 '{entity_type}' 的JSON结果时发生错误: {str(e)}", exc_info=True)
         return []
 
 
@@ -343,18 +428,47 @@ async def process_entity_extraction(text: str, model_info: ModelInfo, entity_typ
     :param entity_types: 自定义的实体类型列表
     :return: 包含所有抽取结果的字典列表
     """
+    # 验证输入文本
+    if not text or not text.strip():
+        logger.warning("输入文本为空")
+        return []
+    
+    # 检查文本长度
+    if len(text) > settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH:
+        logger.warning(f"文本长度 {len(text)} 超过最大限制 {settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH}，将被截断")
+        text = _truncate_text(text, settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH)
+    
     if not entity_types:
         entity_types = DEFAULT_ENTITY_TYPES
     
-    # 为每个实体类型创建一个异步任务
-    tasks = [_extract_single_entity_type(text, etype, model_info) for etype in entity_types]
+    # 限制并发任务数量，避免资源耗尽
+    max_concurrent = settings.ENTITY_EXTRACTION_MAX_CONCURRENT_TASKS
+    semaphore = asyncio.Semaphore(max_concurrent)
     
-    # 并行执行所有任务
-    results_from_tasks = await asyncio.gather(*tasks)
+    async def _extract_with_semaphore(entity_type: str) -> List[EntityResult]:
+        """带信号量控制的抽取函数"""
+        async with semaphore:
+            try:
+                return await _extract_single_entity_type(text, entity_type, model_info)
+            except Exception as e:
+                logger.error(f"实体类型 '{entity_type}' 抽取失败: {str(e)}", exc_info=True)
+                return []
+    
+    # 为每个实体类型创建一个异步任务
+    tasks = [_extract_with_semaphore(etype) for etype in entity_types]
+    
+    # 并行执行所有任务，使用return_exceptions=True避免单个任务失败影响整体
+    results_from_tasks = await asyncio.gather(*tasks, return_exceptions=True)
     
     # 将所有任务返回的结果（它们都是列表）合并成一个大的列表
     final_results = []
-    for result_list in results_from_tasks:
-        final_results.extend(result_list)
+    for i, result in enumerate(results_from_tasks):
+        if isinstance(result, Exception):
+            logger.error(f"实体类型 '{entity_types[i]}' 抽取任务异常: {str(result)}", exc_info=True)
+            continue
+        elif isinstance(result, list):
+            final_results.extend(result)
+        else:
+            logger.warning(f"实体类型 '{entity_types[i]}' 返回了意外的结果类型: {type(result)}")
         
     return final_results

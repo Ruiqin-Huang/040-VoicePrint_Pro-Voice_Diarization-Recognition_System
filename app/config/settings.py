@@ -49,9 +49,9 @@ class Settings(BaseSettings):
     
     # GPU设置
     USE_GPU: bool = True
-    GPU_ID: int = 6
+    GPU_ID: int = 2
 
-    OCR_GPU_ID: List[int] = [6, 1]
+    OCR_GPU_ID: List[int] = [0, 1, 3]
     
     # Milvus配置
     MILVUS_COLLECTION = "voiceprint_db" # 默认插入的Milvus集合名称
@@ -87,6 +87,14 @@ embedding_model:
     llm_api_endpoint: Optional[str] = "http://localhost:11434/api/generate" # Ollama API 服务地址
     llm_model_name: Optional[str] = "deepseek-r1:7b" # Ollama 中部署的模型名称
     
+    # 实体抽取配置
+    ENTITY_EXTRACTION_MAX_TEXT_LENGTH: int = 10000  # 最大文本长度（字符数）
+    ENTITY_EXTRACTION_CHUNK_SIZE: int = 2000  # 文本分块大小（字符数）
+    ENTITY_EXTRACTION_CHUNK_OVERLAP: int = 200  # 分块重叠大小（字符数）
+    ENTITY_EXTRACTION_MAX_CONCURRENT_TASKS: int = 4  # 最大并发任务数
+    ENTITY_EXTRACTION_TIMEOUT: int = 60  # LLM调用超时时间（秒）
+    ENTITY_EXTRACTION_MAX_RETRIES: int = 2  # 最大重试次数
+
     MILVUS_HOST: str = "10.108.17.241"
     MILVUS_PORT: str = "19530"
     MILVUS_COLLECTION: str = "voiceprint_db"
