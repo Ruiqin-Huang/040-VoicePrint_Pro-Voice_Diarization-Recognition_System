@@ -14,10 +14,15 @@ from paddleocr import PaddleOCRVL
 import numpy as np
 import cv2
 import sys
+import time
 
 # from app.config.settings import settings
 # from app.models.file_request import FileRequest
 from utils.io_suppressor import suppress_stdout_stderr
+
+# 定义子进程日志输出
+def log(msg: str):
+    print(f"[OCR-Worker][PID={os.getpid()}] {msg}", file=sys.stderr, flush=True)
 
 try:
     with suppress_stdout_stderr():
@@ -88,7 +93,7 @@ async def recognize_text(image_path: str):
         global OCR_ENGINE
         
         # 将阻塞的同步调用放到线程池中执行，避免阻塞事件循环
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, OCR_ENGINE.predict, image_path)
 
         # 结构化输出
@@ -147,11 +152,19 @@ async def process_ocr_files(file_requests: List[Dict]):
     output_dir = "./data/output/image_ocr"
     os.makedirs(output_dir, exist_ok=True)
 
-    for file_request in tqdm(file_requests, desc="Processing OCR files"):
+    pbar = tqdm(
+        file_requests,
+        desc=f"[OCR-Worker][PID={os.getpid()}] Processing",
+        file=sys.stderr
+    )
+
+    for file_request in pbar:
+        file_id = file_request['id']
+        file_path = file_request['file_path']
+
+        pbar.set_description(f"[OCR-Worker][PID={os.getpid()}] Processing: {os.path.basename(file_path)}")
+
         try:
-            file_id = file_request['id']
-            file_path = file_request['file_path']
-            
             # 处理URL或本地路径
             local_path = file_path
             if await is_url(file_path):
@@ -262,10 +275,12 @@ async def main():
             line = await read_stdin_line()
             if not line:
                 # stdin关闭时退出
+                log("stdin closed, exiting worker loop")
                 break
             if not line.strip():
                 continue
                 
+            log(f"Current OCR Files: {line}")
             files = json.loads(line.strip())
             # print("Received OCR request for files:", files, flush=True)
             processed_files, invalid_files = await process_ocr_files(files)
@@ -275,7 +290,9 @@ async def main():
                 "processed_files": processed_files,
                 "invalid_files": invalid_files
             }
+            log(f"OCR Worker response: {response}")
         except Exception as e:
+            log(f"Exception in main loop: {repr(e)}")
             response = {
                 "status": "error",
                 "msg": str(e)
