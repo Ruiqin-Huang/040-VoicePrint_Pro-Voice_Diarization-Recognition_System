@@ -202,19 +202,15 @@ async def process_ocr_files(file_requests: List[Dict]):
 
             # 显存释放
             del ocr_results, output_data
-            paddle.device.cuda.synchronize()  # 等待GPU完成
-            paddle.device.cuda.empty_cache()
-            gc.collect()
-            await asyncio.sleep(0.05)
             
         except Exception as e:
             invalid_files.append(f"{file_path}: {str(e)}")
 
-        finally:
-            # 确保不会在下一轮保留上次的Tensor
-            paddle.device.cuda.synchronize()
-            paddle.device.cuda.empty_cache()
-            gc.collect()
+        # finally:
+        #     # 确保不会在下一轮保留上次的Tensor
+        #     paddle.device.cuda.synchronize()  # 等待GPU完成
+        #     paddle.device.cuda.empty_cache()
+        #     gc.collect()
     
     # 清理临时文件
     for temp_file in temp_files:
