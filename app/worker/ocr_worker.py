@@ -8,6 +8,7 @@ from app.config.settings import settings
 
 class OCRWorker:
     def __init__(self, gpu_id, conda_env="paddleocr", ocr_module="app.services.image_ocr"):
+        self.gpu_id = gpu_id
         self.conda_env = conda_env
         self.ocr_module = ocr_module
         self.process = None
@@ -16,6 +17,9 @@ class OCRWorker:
         self.env = os.environ.copy()
         self.env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         self.env["FLAGS_allocator_strategy"] = "naive_best_fit"
+        
+        self.loop = None
+        self.lock = asyncio.Lock()
 
     def start(self):
         if self.process is None:
@@ -28,30 +32,34 @@ class OCRWorker:
                 bufsize=1,
                 env=self.env
             )
-            # ç­‰å¾…å­è¿›ç¨‹å¯åŠ¨ä¿¡å·
+            # µÈ´ı×Ó½ø³ÌÆô¶¯ĞÅºÅ
+            self.loop = asyncio.get_running_loop()
             print("OCR Worker response:", self.process.stdout.readline())
             # print("stderr:", self.process.stderr.readline())
             # print("poll:", self.process.poll())
 
     async def send(self, data):
-        """å‘é€æ•°æ®åˆ° OCR å­è¿›ç¨‹å¹¶ç­‰å¾…å“åº”"""
+        async with self.lock:
+            return await self._send_impl(data)
+    
+    async def _send_impl(self, data):
+        """·¢ËÍÊı¾İµ½ OCR ×Ó½ø³Ì²¢µÈ´ıÏìÓ¦"""
         if self.process is None:
             raise RuntimeError("OCR worker is not running")
         if self.process.poll() is not None:
             raise RuntimeError("OCR worker process has exited")
 
-        # å‘é€è¯·æ±‚
+        # ·¢ËÍÇëÇó
         print("Current OCR Files:", json.dumps([item.dict() for item in data]))
         self.process.stdin.write(json.dumps([item.dict() for item in data], ensure_ascii=False) + "\n")
         self.process.stdin.flush()
 
-        # ç­‰å¾…è¿”å›
-        loop = asyncio.get_running_loop()
-        response_line = await loop.run_in_executor(None, self.process.stdout.readline)
+        # µÈ´ı·µ»Ø
+        response_line = await self.loop.run_in_executor(None, self.process.stdout.readline)
         print("OCR Worker response:", response_line)
         response = json.loads(response_line)
 
-        # æ‹†è§£æˆä¸¤ä¸ªéƒ¨åˆ†
+        # ²ğ½â³ÉÁ½¸ö²¿·Ö
         processed_files = response.get("processed_files", [])
         invalid_files = response.get("invalid_files", [])
 
@@ -67,91 +75,107 @@ class OCRWorker:
 class OCRWorkerPool:
     def __init__(self):
         """
-        æ ¹æ® OCR_GPU_ID é…ç½®è‡ªåŠ¨ç¡®å®šworkeræ•°é‡
-        OCR_GPU_ID æ˜¯ List[int] ç±»å‹ï¼Œå¦‚ [6, 7]
+        ¸ù¾İ OCR_GPU_ID ÅäÖÃ×Ô¶¯È·¶¨workerÊıÁ¿
+        OCR_GPU_ID ÊÇ List[int] ÀàĞÍ£¬Èç [6, 7]
         """
         self.gpu_ids = self._get_gpu_ids()
         self.num_workers = len(self.gpu_ids)
         self.workers: List[OCRWorker] = []
-        self.available_workers = asyncio.Queue()
+        # self.available_workers = asyncio.Queue()
+        # ÑÓ³Ù´´½¨¶ÓÁĞ£¬·ÀÖ¹°ó¶¨µ½´íÎóµÄÊ±¼äÑ­»·
+        self.available_workers = None
         self._started = False
         
     def _get_gpu_ids(self) -> List[int]:
-        """è·å–OCR_GPU_IDé…ç½®"""
+        """»ñÈ¡OCR_GPU_IDÅäÖÃ"""
         gpu_ids = getattr(settings, 'OCR_GPU_ID', [0])
         if not isinstance(gpu_ids, list):
-            # å¦‚æœé…ç½®ä¸æ˜¯listï¼Œè½¬æ¢ä¸ºlist
+            # Èç¹ûÅäÖÃ²»ÊÇlist£¬×ª»»Îªlist
             if isinstance(gpu_ids, int):
                 gpu_ids = [gpu_ids]
             elif isinstance(gpu_ids, str):
-                # å¤„ç†å­—ç¬¦ä¸²æ ¼å¼
+                # ´¦Àí×Ö·û´®¸ñÊ½
                 gpu_ids = [int(gpu_id.strip()) for gpu_id in gpu_ids.split(',') if gpu_id.strip()]
             else:
-                gpu_ids = [0]  # é»˜è®¤å€¼
+                gpu_ids = [0]  # Ä¬ÈÏÖµ
                 
         # print(f"Using GPU IDs: {gpu_ids}")
         return gpu_ids
         
     def start(self):
-        """å¯åŠ¨å·¥ä½œè¿›ç¨‹æ± """
+        """Æô¶¯¹¤×÷½ø³Ì³Ø"""
         if self._started:
             return
             
+        # ÔÚStartÖĞ´´½¨¶ÓÁĞ£¬È·±£ÔÚÕıÈ·µÄÊ±¼äÑ­»·ÖĞ´´½¨
+        # try:
+            # loop = asyncio.get_running_loop()
+        # except RuntimeError:
+            # loop = asyncio.get_event_loop()
+            
+        # self.available_workers = asyncio.Queue()
         print(f"Starting {self.num_workers} OCR workers on GPUs: {self.gpu_ids}...")
+        
         
         for gpu_id in self.gpu_ids:
             worker = OCRWorker(gpu_id=gpu_id)
             worker.start()
             self.workers.append(worker)
-            self.available_workers.put_nowait(worker)
+            # self.available_workers.put_nowait(worker)
             
         self._started = True
         print(f"OCR worker pool started with {self.num_workers} workers")
     
     async def send(self, data: Any) -> Tuple[List, List]:
         """
-        å‘é€å•æ¡è¯·æ±‚åˆ°å¯ç”¨çš„worker
+        ·¢ËÍµ¥ÌõÇëÇóµ½¿ÉÓÃµÄworker
         
-        :param data: å•æ¡è¯·æ±‚æ•°æ®
+        :param data: µ¥ÌõÇëÇóÊı¾İ
         :return: (processed_files, invalid_files)
         """
         if not self._started:
             raise RuntimeError("OCR worker pool is not started")
             
-        # æ’é˜Ÿç­‰å¾…å¯ç”¨workerï¼ˆæ— é™ç­‰å¾…ï¼‰
+        # ÑÓ³Ùµ½ÖĞ´´½¨¶ÓÁĞ
+        if self.available_workers is None:
+            self.available_workers = asyncio.Queue()
+            for worker in self.workers:
+                self.available_workers.put_nowait(worker)
+            
+        # ÅÅ¶ÓµÈ´ı¿ÉÓÃworker£¨ÎŞÏŞµÈ´ı£©
         worker = await self.available_workers.get()
         
         try:
-            # å‘é€å•æ¡è¯·æ±‚åˆ°worker
+            # ·¢ËÍµ¥ÌõÇëÇóµ½worker
             result = await worker.send(data)
             return result
         except Exception as e:
-            # å¦‚æœworkerå‡ºé”™ï¼Œé‡æ–°åˆ›å»ºworker
+            # Èç¹ûworker³ö´í£¬ÖØĞÂ´´½¨worker
             print(f"Worker on GPU {worker.gpu_id} error: {e}, restarting...")
             await self._restart_worker(worker)
             raise
         finally:
-            # å°†workeræ”¾å›å¯ç”¨é˜Ÿåˆ—
+            # ½«worker·Å»Ø¿ÉÓÃ¶ÓÁĞ
             if worker.process and worker.process.poll() is None:
                 self.available_workers.put_nowait(worker)
     
     async def send_concurrent(self, requests: List, timeout_per_request: float = 60.0) -> List[Tuple[List, List]]:
         """
-        å¹¶å‘å‘é€å¤šä¸ªå•æ¡è¯·æ±‚ï¼ˆæ¯ä¸ªè¯·æ±‚ç‹¬ç«‹å¤„ç†ï¼‰
+        ²¢·¢·¢ËÍ¶à¸öµ¥ÌõÇëÇó£¨Ã¿¸öÇëÇó¶ÀÁ¢´¦Àí£©
         
-        :param requests: å•æ¡è¯·æ±‚åˆ—è¡¨
-        :param timeout_per_request: æ¯ä¸ªè¯·æ±‚çš„è¶…æ—¶æ—¶é—´
-        :return: ç»“æœåˆ—è¡¨
+        :param requests: µ¥ÌõÇëÇóÁĞ±í
+        :param timeout_per_request: Ã¿¸öÇëÇóµÄ³¬Ê±Ê±¼ä
+        :return: ½á¹ûÁĞ±í
         """
         tasks = []
         for request in requests:
             task = self.send(request, timeout_per_request)
             tasks.append(task)
         
-        # å¹¶å‘æ‰§è¡Œï¼Œä½†æœ€å¤§å¹¶å‘æ•°å—workeræ•°é‡é™åˆ¶
+        # ²¢·¢Ö´ĞĞ£¬µ«×î´ó²¢·¢ÊıÊÜworkerÊıÁ¿ÏŞÖÆ
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # å¤„ç†å¼‚å¸¸ç»“æœ
+        # ´¦ÀíÒì³£½á¹û
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
@@ -163,30 +187,32 @@ class OCRWorkerPool:
         return processed_results
     
     async def _restart_worker(self, worker: OCRWorker):
-        """é‡å¯å‡ºé”™çš„worker"""
+        """ÖØÆô³ö´íµÄworker"""
         try:
             worker.stop()
             worker.start()
             print(f"Worker on GPU {worker.gpu_id} restarted successfully")
         except Exception as e:
             print(f"Failed to restart worker on GPU {worker.gpu_id}: {e}")
-            # å¦‚æœé‡å¯å¤±è´¥ï¼Œåˆ›å»ºæ–°çš„workeræ›¿æ¢
+            # Èç¹ûÖØÆôÊ§°Ü£¬´´½¨ĞÂµÄworkerÌæ»»
             new_worker = OCRWorker(gpu_id=worker.gpu_id)
             new_worker.start()
             self.workers.remove(worker)
             self.workers.append(new_worker)
-            self.available_workers.put_nowait(new_worker)
+            # self.available_workers.put_nowait(new_worker)
+            if self.available_workers is not None:
+                self.available_workers.put_nowait(new_worker)
     
     def get_pool_status(self) -> Dict:
-        """è·å–è¿›ç¨‹æ± çŠ¶æ€"""
+        """»ñÈ¡½ø³Ì³Ø×´Ì¬"""
         if not self._started:
             return {"status": "not_started"}
             
-        available_count = self.available_workers.qsize()
+        available_count = self.available_workers.qsize() if self.available_workers is not None else len(self.workers)
         total_count = len(self.workers)
         busy_count = total_count - available_count
         
-        # æ£€æŸ¥workerå¥åº·çŠ¶æ€
+        # ¼ì²éworker½¡¿µ×´Ì¬
         worker_status = []
         for worker in self.workers:
             is_healthy = worker.process and worker.process.poll() is None
@@ -209,26 +235,34 @@ class OCRWorkerPool:
         }
     
     def stop(self):
-        """åœæ­¢æ‰€æœ‰worker"""
+        """Í£Ö¹ËùÓĞworker"""
         if not self._started:
             return
             
         print("Stopping OCR worker pool...")
         
-        # æ¸…ç©ºé˜Ÿåˆ—
-        while not self.available_workers.empty():
-            try:
-                self.available_workers.get_nowait()
-            except:
-                break
+        # Çå¿Õ¶ÓÁĞ
+        # while not self.available_workers.empty():
+        #     try:
+        #         self.available_workers.get_nowait()
+        #     except:
+        #         break
+        
+        if self.available_workers is not None:
+            while not self.available_workers.empty():
+                try:
+                    self.available_workers.get_nowait()
+                except:
+                    break
                 
-        # åœæ­¢æ‰€æœ‰worker
+        # Í£Ö¹ËùÓĞworker
         for worker in self.workers:
             worker.stop()
             
         self.workers.clear()
+        self.available_workers = None
         self._started = False
         print("OCR worker pool stopped")
 
-# åˆ›å»ºå…¨å±€è¿›ç¨‹æ± å®ä¾‹ - è‡ªåŠ¨æ ¹æ®OCR_GPU_IDé…ç½®
+# ´´½¨È«¾Ö½ø³Ì³ØÊµÀı - ×Ô¶¯¸ù¾İOCR_GPU_IDÅäÖÃ
 ocr_worker_pool = OCRWorkerPool()

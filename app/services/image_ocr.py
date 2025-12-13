@@ -41,17 +41,24 @@ async def is_url(path: str) -> bool:
 async def download_file(url: str) -> str:
     """下载文件到临时目录（支持图片格式）"""
     try:
-        response = requests.get(url, stream=True, timeout=30)
-        response.raise_for_status()
+        # 将阻塞的requests调用放到线程池中执行，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
         
-        ext = os.path.splitext(urlparse(url).path)[1] or '.jpg'
-        temp_dir = tempfile.gettempdir()
-        local_path = os.path.join(temp_dir, f"{uuid.uuid4()}{ext}")
+        def _download():
+            response = requests.get(url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            ext = os.path.splitext(urlparse(url).path)[1] or '.jpg'
+            temp_dir = tempfile.gettempdir()
+            local_path = os.path.join(temp_dir, f"{uuid.uuid4()}{ext}")
+            
+            with open(local_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            return local_path
         
-        with open(local_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+        local_path = await loop.run_in_executor(None, _download)
         return local_path
     except Exception as e:
         raise RuntimeError(f"文件下载失败: {str(e)}")
@@ -80,7 +87,9 @@ async def recognize_text(image_path: str):
         # 全局加载模型
         global OCR_ENGINE
         
-        result = OCR_ENGINE.predict(input=image_path)
+        # 将阻塞的同步调用放到线程池中执行，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, OCR_ENGINE.predict, image_path)
 
         # 结构化输出
         formatted_results = []
@@ -217,6 +226,12 @@ async def process_ocr_files(file_requests: List[Dict]):
 #     )
 #     vis.save(output_path)
 
+async def read_stdin_line():
+    """异步读取stdin的一行，避免阻塞事件循环"""
+    loop = asyncio.get_event_loop()
+    # 使用线程池执行阻塞的stdin读取
+    return await loop.run_in_executor(None, sys.stdin.readline)
+
 async def main():
     # # 使用示例
     # output = OCR_ENGINE.predict("./data/16372762f1fbface6e8b828ad56e89a9.jpg")
@@ -241,10 +256,16 @@ async def main():
     #         "ocr_result_visualization.jpg"
     #     )
 
-    for line in sys.stdin:
+    # 使用异步循环替代同步的for循环，避免阻塞事件循环
+    while True:
         try:
+            line = await read_stdin_line()
+            if not line:
+                # stdin关闭时退出
+                break
             if not line.strip():
                 continue
+                
             files = json.loads(line.strip())
             # print("Received OCR request for files:", files, flush=True)
             processed_files, invalid_files = await process_ocr_files(files)
