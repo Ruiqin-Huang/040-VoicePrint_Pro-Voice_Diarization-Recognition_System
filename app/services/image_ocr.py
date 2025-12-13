@@ -118,7 +118,7 @@ async def recognize_text(image_path: str):
                     "box": item.bbox
                 })
 
-                if item.label == 'doc_title':
+                if item.label != 'text':
                     lines.append(item.content)
                     lines.append("")
                 else:
