@@ -16,7 +16,45 @@ from utils.helpers import get_file_type
 from utils.io_suppressor import suppress_stdout_stderr
 import requests
 import tempfile 
-from urllib.parse import urlparse 
+from urllib.parse import urlparse
+
+def extend_audio_if_needed(audio_path: str, min_duration: float = 20.0, temp_dir: str = None) -> tuple:
+    """
+    检查音频长度，如果不足指定时长则通过重复堆砌的方式延长至至少指定时长
+    返回处理后的临时文件路径和是否需要清理的标记
+    
+    Args:
+        audio_path: 原始音频文件路径
+        min_duration: 最小时长（秒），默认20秒
+        temp_dir: 临时文件目录，如果为None则使用系统临时目录
+    
+    Returns:
+        tuple: (处理后的文件路径, 是否需要清理临时文件, 原始时长)
+    """
+    # 加载音频
+    audio, sr = librosa.load(audio_path, sr=None)
+    audio_duration = len(audio) / sr
+    
+    # 如果音频长度已经满足要求，直接返回原路径
+    if audio_duration >= min_duration:
+        return audio_path, False, audio_duration
+    
+    # 需要扩展音频
+    target_samples = int(min_duration * sr)
+    repeats_needed = int(target_samples / len(audio)) + 1
+    
+    # 重复堆砌音频
+    extended_audio = np.tile(audio, repeats_needed)[:target_samples]
+    
+    # 创建临时文件
+    if temp_dir is None:
+        temp_dir = tempfile.gettempdir()
+    os.makedirs(temp_dir, exist_ok=True)
+    
+    temp_filename = os.path.join(temp_dir, f"extended_{os.path.basename(audio_path)}")
+    sf.write(temp_filename, extended_audio, sr)
+    
+    return temp_filename, True, audio_duration 
 
 async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num_speakers: int) -> str:
     """从原始音频中提取目标说话人的语音，其他人语音置为静音"""
@@ -205,11 +243,19 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                     "segment_files": []
                 })
                 continue
+            
+            # 检查音频长度，如果不足20秒则扩展（仅在内存中处理，使用临时文件）
+            processing_path, needs_cleanup, original_duration = extend_audio_if_needed(
+                local_path, min_duration=20.0, temp_dir=None
+            )
+            if needs_cleanup:
+                temp_files.append(processing_path)
+                print(f"[INFO] 音频 {file_path} 原始时长 {original_duration:.2f}秒，已扩展至至少20秒")
                 
             # 分割说话人
             try:
                 with suppress_stdout_stderr():
-                    result = sd_pipeline(local_path)
+                    result = sd_pipeline(processing_path)
             except Exception as e:
                 if "The effective audio duration is too short" in str(e):
                     print(f"Skipping {file_path} due to short audio duration.")
@@ -222,6 +268,17 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                     continue
                 else:
                     raise e
+
+            # 如果音频被扩展过，需要过滤掉超出原始音频长度的切分结果
+            if needs_cleanup:
+                filtered_segments = []
+                for seg_start, seg_end, spk_id in result['text']:
+                    if seg_start < original_duration:
+                        # 限制结束时间不超过原始音频长度
+                        seg_end = min(seg_end, original_duration)
+                        if seg_end > seg_start:  # 确保还有有效时长
+                            filtered_segments.append((seg_start, seg_end, spk_id))
+                result['text'] = filtered_segments
 
             # 获取实际的说话人数量
             speaker_ids = set()

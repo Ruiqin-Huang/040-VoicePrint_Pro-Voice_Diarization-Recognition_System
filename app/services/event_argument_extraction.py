@@ -34,7 +34,7 @@ ARGUMENT_EXTRACTION_PROMPT = """
 请严格按照以下JSON格式返回结果。
 - `trigger` 字段必须是字符串，表示事件的触发词。
 - `arguments` 字段必须是一个列表，其中每个元素都是一个包含 "name" 和 "value" 的对象。
-- 如果在文本中找不到某个论元，请将该论元的 "value" 设置为 "None"，禁止凭空捏造不存在的论元值。
+- 如果在文本中找不到某个论元，请将该论元的 "value" 设置为 null，禁止凭空捏造不存在的论元值。
 - 对于有特殊格式化要求的论元（如时间和日期），请在抽取时结合上下文，并尽量遵循格式要求。
 - 使用占位符'X'替换未知的时间/日期信息。例如对于具体年份不确定的日期'7月8日'，仅输出"XXXX-07-08"即可。对于具体日期不确定的时间'下午3点'，仅输出"XXXX-XX-XX 15:00:00"即可。
 
@@ -67,6 +67,7 @@ def _clean_json_string(json_str: str) -> str:
     json_str = json_str.replace('\n', ' ').replace('\r', '')
     json_str = re.sub(r',\s*}', '}', json_str)
     json_str = re.sub(r',\s*\]', ']', json_str)
+    json_str = json_str.replace('None', 'null')
     return json_str
 
 def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
@@ -254,7 +255,7 @@ async def _extract_single_event(text: str, event_info: EventInfo, model_info: Mo
             if not isinstance(value, str): value = str(value)
             
             # 如果值是 "none" (不区分大小写) 或 "未知"，则跳过
-            if value.lower() == 'none' or value == '未知' or not value:
+            if value.lower() == ('none' or 'null') or value == '未知' or not value:
                 continue
 
             # 对时间和日期论元进行后处理

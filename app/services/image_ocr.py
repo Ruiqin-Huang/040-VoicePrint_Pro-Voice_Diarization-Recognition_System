@@ -22,7 +22,7 @@ from utils.io_suppressor import suppress_stdout_stderr
 
 # 定义子进程日志输出
 def log(msg: str):
-    print(f"[OCR-Worker][PID={os.getpid()}] {msg}", file=sys.stderr, flush=True)
+    print(f"[OCR-Worker][GPU={os.getenv('OCR_WORKER_GPU_ID', '0')}][PID={os.getpid()}] {msg}", file=sys.stderr, flush=True)
 
 try:
     with suppress_stdout_stderr():
@@ -82,6 +82,13 @@ def preprocess_image(image_path: str):
         cv2.THRESH_BINARY, 11, 2
     )
 
+def dedup_repeated_substring(s: str, min_repeat=10, max_unit_len=10):
+    """清除重复文本"""
+    for k in range(1, max_unit_len + 1):
+        pattern = rf'(.{{{k}}})\1{{{min_repeat-1},}}'
+        s = re.sub(pattern, r'\1', s)
+    return s
+
 async def recognize_text(image_path: str):
     """
     执行OCR识别
@@ -127,12 +134,14 @@ async def recognize_text(image_path: str):
                     else:
                         lines.append(item.content)
                 
+            filtered_text = dedup_repeated_substring("\n".join(lines))
+
             formatted_results.append({
                 "page": i,
                 "content": formatted_page,
-                "total_text": "\n".join(lines)
+                "total_text": filtered_text
             })
-        
+
         return formatted_results
     
     except Exception as e:

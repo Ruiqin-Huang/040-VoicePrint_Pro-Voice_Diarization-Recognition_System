@@ -17,6 +17,7 @@ class OCRWorker:
         self.env = os.environ.copy()
         self.env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         self.env["FLAGS_allocator_strategy"] = "naive_best_fit"
+        self.env["OCR_WORKER_GPU_ID"] = str(gpu_id)
         
         self.lock = asyncio.Lock()
 
@@ -55,7 +56,7 @@ class OCRWorker:
         # 等待返回
         loop = asyncio.get_running_loop()
         response_line = await loop.run_in_executor(None, self.process.stdout.readline)
-        print("OCR Worker response:", response_line)
+        # print("OCR Worker response:", response_line)
         response = json.loads(response_line)
 
         # 拆解成两个部分
@@ -68,7 +69,7 @@ class OCRWorker:
         if self.process:
             self.process.terminate()
             self.process.wait()
-            print("OCR worker on GPU {self.gpu_id} stopped")
+            print(f"OCR worker on GPU {self.gpu_id} stopped")
             self.process = None
 
 class OCRWorkerPool:

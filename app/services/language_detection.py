@@ -14,6 +14,7 @@ from app.config.settings import settings
 
 # 全局加载FastText语种检测模型（建议在应用启动时加载）
 LANG_DETECTOR = fasttext.load_model(settings.FASTTEXT_CACHE_DIR)
+MIN_LEN = 20  # 最小文本长度要求
 
 async def is_url(path: str) -> bool:
     """检查路径是否为URL"""
@@ -47,10 +48,11 @@ def detect_language(text: str):
     """
     # 移除换行符并确保最小长度
     cleaned_text = ' '.join(text.splitlines())[:1000]  # 限制检测长度
-    
-    if len(cleaned_text) < 10:
-        return "unknown", 0.0
-    
+
+    if len(cleaned_text) < MIN_LEN:
+        repeats = (MIN_LEN // len(cleaned_text)) + 1
+        cleaned_text = (cleaned_text + ' ') * repeats
+        
     global LANG_DETECTOR
     # 执行预测
     predictions = LANG_DETECTOR.predict(cleaned_text, k=1)

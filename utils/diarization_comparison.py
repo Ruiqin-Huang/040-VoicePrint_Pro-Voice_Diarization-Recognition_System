@@ -23,46 +23,7 @@ from speakerlab.utils.utils import circle_pad
 from app.config.settings import settings
 from utils.io_suppressor import suppress_stdout_stderr
 from utils.Milvus import MilvusClient
-
-def extend_audio_if_needed(audio_path: str, min_duration: float = 20.0, temp_dir: str = None) -> tuple:
-    """
-    检查音频长度，如果不足指定时长则通过重复堆砌的方式延长至至少指定时长
-    返回处理后的临时文件路径和是否需要清理的标记
-    
-    Args:
-        audio_path: 原始音频文件路径
-        min_duration: 最小时长（秒），默认20秒
-        temp_dir: 临时文件目录，如果为None则使用系统临时目录
-    
-    Returns:
-        tuple: (处理后的文件路径, 是否需要清理临时文件, 原始时长)
-    """
-    import tempfile
-    
-    # 加载音频
-    audio, sr = librosa.load(audio_path, sr=None)
-    audio_duration = len(audio) / sr
-    
-    # 如果音频长度已经满足要求，直接返回原路径
-    if audio_duration >= min_duration:
-        return audio_path, False, audio_duration
-    
-    # 需要扩展音频
-    target_samples = int(min_duration * sr)
-    repeats_needed = int(target_samples / len(audio)) + 1
-    
-    # 重复堆砌音频
-    extended_audio = np.tile(audio, repeats_needed)[:target_samples]
-    
-    # 创建临时文件
-    if temp_dir is None:
-        temp_dir = tempfile.gettempdir()
-    os.makedirs(temp_dir, exist_ok=True)
-    
-    temp_filename = os.path.join(temp_dir, f"extended_{os.path.basename(audio_path)}")
-    sf.write(temp_filename, extended_audio, sr)
-    
-    return temp_filename, True, audio_duration
+from utils.audio_utils import extend_audio_if_needed
 
 class DiarizationComparisonService:
     def __init__(self):
