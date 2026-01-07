@@ -1,14 +1,31 @@
+"""
+机器翻译数据模型模块
+
+定义机器翻译相关的Pydantic数据模型，用于API请求和响应的数据验证和序列化。
+
+包含以下模型：
+- TranslationRequest: 翻译请求模型
+- TranslationResponseData: 翻译响应数据模型
+
+依赖：
+- pydantic: 数据验证和序列化
+- typing: 类型注解
+- app.models.file_request: 文件请求模型
+"""
+
 from typing import List, Optional
 from pydantic import BaseModel, validator
 from app.models.file_request import FileRequest
 
 class TranslationRequest(BaseModel):
     """
-    翻译请求参数模型（必须指定语种）
-    :param file_requests: 待翻译文本列表
-    :param source_lang: 源语言代码 (如 'en')
-    :param target_lang: 目标语言代码 (如 'zh')
-    :param target_lang: 模型选项 ('m2m100' 或 'small100')
+    翻译请求参数模型
+
+    Attributes:
+        text: 待翻译的文本列表
+        source_lang: 源语言代码（如'en', 'zh'）
+        target_lang: 目标语言代码（如'en', 'zh'）
+        model_type: 使用的翻译模型类型，默认为'm2m100'
     """
     text: List[str]
     source_lang: str
@@ -17,20 +34,34 @@ class TranslationRequest(BaseModel):
 
     @validator('text')
     def text_must_not_be_empty(cls, v):
+        """
+        验证器：确保文本列表不为空
+
+        Args:
+            v: 文本列表值
+
+        Returns:
+            List[str]: 验证后的文本列表
+
+        Raises:
+            ValueError: 当文本列表为空时抛出
+        """
         if not v:
             raise ValueError("文件列表不能为空")
         return v
 
 class TranslationResponseData(BaseModel):
     """
-    翻译结果模型（移除语种检测字段）
-    :param source_lang: 源语言代码 (如 'en')
-    :param source_lang_name: 源语言名称
-    :param source_text: 原文
-    :param source_lang: 目标语言代码 (如 'en')
-    :param source_lang_name: 目标语言名称
-    :param translated_text: 翻译结果全文
-    :param model_name: 使用的模型标识
+    翻译结果响应数据模型
+
+    Attributes:
+        source_lang: 源语言代码
+        source_lang_name: 源语言中文名称
+        source_text: 原文文本
+        target_lang: 目标语言代码
+        target_lang_name: 目标语言中文名称
+        translated_text: 翻译后的文本
+        model_name: 使用的翻译模型名称
     """
     source_lang: str
     source_lang_name: str
