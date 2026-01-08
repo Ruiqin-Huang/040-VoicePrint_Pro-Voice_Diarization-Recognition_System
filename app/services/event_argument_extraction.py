@@ -1,3 +1,21 @@
+"""
+事件论元抽取服务模块
+
+该模块提供基于大语言模型的事件论元抽取功能，支持从文本中抽取事件的触发词和论元。
+主要功能包括：
+- 事件论元抽取Prompt构建
+- 文本预处理和解析
+- 并行事件抽取处理
+- JSON结果解析和验证
+- 时间/日期论元格式化处理
+
+依赖：
+- app.llm: 大语言模型客户端
+- asyncio: 用于异步并行处理
+- json: 用于JSON解析
+- re: 用于正则表达式处理
+"""
+
 import json
 import re
 import asyncio
@@ -10,11 +28,14 @@ from app.models.common import ModelInfo
 
 # --- Prompts Definition ---
 
+# 系统提示词：指导大语言模型如何输出结果
 SYSTEM_PROMPT = """你是一个专门用于事件论元抽取的API。你的唯一任务是根据用户指令，从给定文本中抽取出指定事件的触发词和论元，并返回一个原始、干净的JSON对象。
 你绝对禁止输出任何解释、注释、对话或Markdown标记（例如 ```json）。
 不要在JSON中添加任何形式的注释（如//或/**/）。
 你的全部响应必须是一个单一、有效的、可以直接被解析的JSON对象，除此之外别无他物。"""
 
+# 事件论元抽取Prompt模板
+# 用于指导大语言模型进行事件论元抽取的标准Prompt
 ARGUMENT_EXTRACTION_PROMPT = """
 请从以下文本中，针对类型为“{event_type}”的事件，抽取指定的论元。
 
@@ -51,17 +72,31 @@ ARGUMENT_EXTRACTION_PROMPT = """
 """
 
 # 为关键、需规范输出格式的论元提供清晰的描述和格式
+# 用于在Prompt中向大语言模型说明特定论元类型的含义和格式要求
 ARGUMENT_DEFINITIONS = {
     "时间": "表示一天中特定时刻的时间点（如'下午3点'）或包含日期的完整时间（如'2025年10月9日15点'）。需结合上下文（如'当天'、'同年'）补全信息。最终值应尽可能格式化为'YYYY-MM-DD HH:MM:SS'或'HH:MM:SS'。",
     "日期": "表示特定日期的文本（如'2025年10月9日'），不包含具体时间点。需结合上下文（如'同年'）补全信息。最终值应尽可能格式化为'YYYY-MM-DD'。",
 }
 
+# 默认论元类型列表
+# 当用户未指定论元类型时，使用此列表中的类型进行抽取
 DEFAULT_ARGUMENT_TYPES = ['主体', '客体', '时间', '地点']
 
 # --- JSON Parsing Logic ---
 
 def _clean_json_string(json_str: str) -> str:
-    """清理JSON字符串，移除注释和可能导致解析错误的字符。"""
+    """
+    清理JSON字符串，移除注释和可能导致解析错误的字符
+    
+    移除JSON字符串中的单行注释（//）、多行注释（/* */）、
+    多余的换行符、尾随逗号和Python的None值，确保JSON可以被正确解析。
+    
+    Args:
+        json_str: 待清理的JSON字符串
+        
+    Returns:
+        str: 清理后的JSON字符串
+    """
     json_str = re.sub(r'//.*?($|\n)', '', json_str)
     json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
     json_str = json_str.replace('\n', ' ').replace('\r', '')
@@ -72,12 +107,24 @@ def _clean_json_string(json_str: str) -> str:
 
 def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
     """
-    将抽取的原始时间/日期文本规范化为指定格式。
-    此函数按优先级顺序尝试多种正则表达式来解析日期和时间。
+    将抽取的原始时间/日期文本规范化为指定格式
+    
+    此函数按优先级顺序尝试多种正则表达式来解析日期和时间，
+    支持多种时间/日期格式，并将结果格式化为标准格式。
+    
+    Args:
+        raw_text: 抽取出的原始时间/日期文本
+        entity_type: 实体类型（"时间"或"日期"）
+        
+    Returns:
+        str: 格式化后的时间/日期字符串，格式为：
+            - 日期：YYYY-MM-DD 或 YYYY-MM-XX 或 XXXX-MM-DD 等
+            - 时间：YYYY-MM-DD HH:MM:SS 或 HH:MM:SS 等
+            如果无法解析则返回空字符串
     """
     # 初始化所有时间日期组件为占位符
-    year, month, day = 'XXXX', 'XX', 'XX'
-    hour, minute, second = 'XX', 'XX', 'XX'
+    year, month, day = 'XXXX', 'XX', 'XX'  # 年月日占位符
+    hour, minute, second = 'XX', 'XX', 'XX'  # 时分秒占位符
 
     # --- 1. 提取年月日 (按最长、最完整模式优先) ---
 
@@ -185,7 +232,21 @@ def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
     return raw_text # 对于其他类型或无法解析的情况，返回原始文本
 
 async def _extract_single_event(text: str, event_info: EventInfo, model_info: ModelInfo) -> SingleEventResult:
-    """对单个事件进行论元抽取。"""
+    """
+    对单个事件进行论元抽取
+    
+    使用大语言模型从文本中抽取指定事件的触发词和论元。
+    对时间和日期论元进行特殊处理和格式化。
+    
+    Args:
+        text: 待抽取的文本内容
+        event_info: 事件信息，包含事件类型和论元类型列表
+        model_info: 指定用于抽取的大模型信息
+        
+    Returns:
+        SingleEventResult: 事件抽取结果，包含事件类型、触发词和论元列表
+                          如果解析失败，返回包含错误信息的默认结构
+    """
     event_type = event_info.event_type
     argument_types = event_info.argument_types or DEFAULT_ARGUMENT_TYPES
     argument_list_str = ", ".join(argument_types)
@@ -283,7 +344,20 @@ async def _extract_single_event(text: str, event_info: EventInfo, model_info: Mo
 
 
 async def process_multi_event_argument_extraction(text: str, events_info: List[EventInfo], model_info: ModelInfo) -> List[SingleEventResult]:
-    """并行处理单个文本中的多个事件论元抽取任务。"""
+    """
+    并行处理单个文本中的多个事件论元抽取任务
+    
+    对指定的多个事件进行并行抽取，使用asyncio.gather实现并行处理，
+    提高处理效率。每个事件独立抽取，互不影响。
+    
+    Args:
+        text: 待抽取的文本内容
+        events_info: 事件信息列表，每个元素包含事件类型和论元类型列表
+        model_info: 指定用于抽取的大模型信息
+        
+    Returns:
+        List[SingleEventResult]: 所有事件的抽取结果列表，每个元素包含事件类型、触发词和论元列表
+    """
     tasks = [_extract_single_event(text, event, model_info) for event in events_info]
     results = await asyncio.gather(*tasks)
     return results

@@ -1,3 +1,20 @@
+"""
+语音分割服务模块
+
+该模块提供音频说话人分割功能，支持将多人语音分离为单个说话人的音频片段。
+主要功能包括：
+- 说话人分割（Speaker Diarization）
+- 音频文件扩展（如果音频过短）
+- 说话人音频提取和保存
+- 支持本地文件和URL文件处理
+
+依赖：
+- modelscope: 用于说话人分割
+- librosa: 用于音频处理
+- soundfile: 用于音频文件读写
+- requests: 用于URL文件下载
+"""
+
 import json
 import os
 import shutil
@@ -57,11 +74,28 @@ def extend_audio_if_needed(audio_path: str, min_duration: float = 20.0, temp_dir
     return temp_filename, True, audio_duration 
 
 async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num_speakers: int) -> str:
-    """从原始音频中提取目标说话人的语音，其他人语音置为静音"""
+    """
+    从原始音频中提取目标说话人的语音，其他人语音置为静音
+    
+    根据说话人分割结果，为每个说话人创建一个独立的音频文件，
+    其中只包含该说话人的语音，其他说话人的语音部分被置为静音。
+    
+    Args:
+        wav_path: 原始音频文件的绝对路径
+        results: 说话人分割结果列表，每个元素为(start_time, end_time, speaker_id)元组
+        file_dir: 保存分割后音频文件的目录（相对于OUTPUT_DIR）
+        num_speakers: 说话人数量
+        
+    Returns:
+        List[Dict]: 分割后的文件信息列表，每个字典包含：
+            - id: 分割文件的唯一标识符
+            - file_url: 分割后的音频文件绝对路径
+    """
+    # 构建保存目录的绝对路径
     save_dir = os.path.join(settings.OUTPUT_DIR, file_dir)
     os.makedirs(save_dir, exist_ok=True)
 
-    # 读取音频
+    # 读取原始音频
     audio, sr = librosa.load(wav_path, sr=None)
     # 创建speaker人数长度的音频列表，每个元素都是静音数组
     audio_out_list = [np.zeros_like(audio) for _ in range(num_speakers)]
@@ -73,11 +107,12 @@ async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num
     for seg in results:
         start_time, end_time, speaker_id = seg
 
+        # 为每个说话人分配连续编号
         if speaker_id not in speakers:
             speakers[speaker_id] = len(speakers)
         real_speaker_id = speakers[speaker_id]
 
-        # 获取音频的起始和结束位置
+        # 获取音频的起始和结束位置（采样点）
         start_sample = int(start_time * sr)
         end_sample = int(end_time * sr)
 
@@ -85,16 +120,20 @@ async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num
         if end_sample <= len(audio):  # 确保索引不超出范围
             audio_out_list[real_speaker_id][start_sample:end_sample] = audio[start_sample:end_sample]
     
+    # 存储分割后的文件信息
     segment_files = []
 
     # 保存输出音频
     for audio_out in audio_out_list:
+        # 生成唯一的分割文件ID
         segment_id = str(uuid.uuid4())
         filename = f"{segment_id}.wav"
         save_path = os.path.join(save_dir, filename)
 
+        # 保存音频文件
         sf.write(save_path, audio_out, sr)
         
+        # 记录文件信息
         segment_files.append(
             {
                 "id": segment_id,
@@ -104,8 +143,23 @@ async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num
     return segment_files
 
 async def extract_and_save_speaker_segments(wav_path: str, results: List, file_dir: str) -> Dict[str, Any]:
-    """提取语音段（自动合并连续的相同说话人段）"""
+    """
+    提取语音段（自动合并连续的相同说话人段）
+    
+    根据说话人分割结果，合并连续的相同说话人段，并生成元数据文件。
+    注意：此函数目前只生成元数据，不实际提取和保存音频片段。
+    
+    Args:
+        wav_path: 原始音频文件的绝对路径
+        results: 说话人分割结果列表，每个元素为(start_time, end_time, speaker_id)元组
+        file_dir: 保存元数据文件的目录（相对于OUTPUT_DIR）
+        
+    Returns:
+        Dict[str, Any]: 包含音频源和分割段信息的元数据字典
+    """
+    # 读取原始音频
     audio, sr = librosa.load(wav_path, sr=None)
+    # 构建保存目录的绝对路径
     save_dir = os.path.join(settings.OUTPUT_DIR, file_dir)
     os.makedirs(save_dir, exist_ok=True)
     
@@ -122,10 +176,12 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, file_d
     for seg in results:
         start_time, end_time, speaker_id = seg
 
+        # 为每个说话人分配连续编号
         if speaker_id not in speakers:
             speakers[speaker_id] = len(speakers)
         real_speaker_id = speakers[speaker_id]
 
+        # 如果当前段与上一段是同一说话人且时间连续，则合并
         if not merged_segments:
             merged_segments.append([start_time, end_time, real_speaker_id])
         else:
@@ -136,19 +192,22 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, file_d
             else:
                 merged_segments.append([start_time, end_time, real_speaker_id])
 
+    # 构建元数据字典
     metadata = {"audio_source": original_filename, "segments": []}
 
+    # 为每个合并后的段生成元数据
     for seg_idx, (start_time, end_time, speaker_id) in enumerate(merged_segments):
         segment_id = str(uuid.uuid4())
         filename = f"{segment_id}.wav"
         filepath = os.path.join(save_dir, filename)
         output_filepath = os.path.join(file_dir, filename)
         
-        # # 提取并保存音频
+        # # 提取并保存音频（已注释）
         # start_sample = int(start_time * sr)
         # end_sample = int(end_time * sr)
         # sf.write(filepath, audio[start_sample:end_sample], sr)
 
+        # 说话人身份标识
         identity = ["主叫", "被叫"]
 
         # 记录元数据
@@ -162,21 +221,41 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, file_d
             "file_path": output_filepath
         })
 
+    # 保存元数据到JSON文件
     base_name, ext = os.path.splitext(original_filename)
-    # 保存元数据
     with open(os.path.join(save_dir, f"{base_name}.json"), 'w') as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     return metadata
 
 async def is_url(path: str) -> bool:
-    """检查路径是否为URL"""
+    """
+    检查路径是否为URL
+    
+    Args:
+        path: 待检查的路径字符串
+        
+    Returns:
+        bool: 如果是URL返回True，否则返回False
+    """
     parsed = urlparse(path)
     return bool(parsed.scheme and parsed.netloc)
 
 async def download_file(url: str) -> str:
-    """从URL下载文件到本地临时目录"""
+    """
+    从URL下载文件到本地临时目录
+    
+    Args:
+        url: 文件的URL地址
+        
+    Returns:
+        str: 下载后的本地文件路径
+        
+    Raises:
+        Exception: 下载失败时抛出异常
+    """
     try:
+        # 发送HTTP请求下载文件
         response = requests.get(url, stream=True)
         response.raise_for_status()  # 确保请求成功
         
@@ -184,7 +263,7 @@ async def download_file(url: str) -> str:
         temp_dir = tempfile.gettempdir()
         local_filename = os.path.join(temp_dir, f"{uuid.uuid4()}.wav")
         
-        # 写入文件
+        # 以二进制模式写入文件
         with open(local_filename, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
@@ -194,7 +273,23 @@ async def download_file(url: str) -> str:
         raise Exception(f"下载文件失败: {str(e)}")
 
 async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
-    """处理语音分离"""
+    """
+    处理语音分离
+    
+    对多个音频文件执行说话人分割，将多人语音分离为单个说话人的音频片段。
+    支持本地文件和URL文件，支持批量处理。
+    
+    Args:
+        file_requests: 文件请求列表，每个请求包含文件ID和文件路径
+        
+    Returns:
+        Tuple[List[Dict], List[str]]: 
+            - 成功处理的文件结果列表，每个包含file_id, file_type, segment_files
+            - 处理失败的文件列表，包含错误信息
+            
+    Raises:
+        Exception: 当所有文件处理失败或模型加载失败时抛出
+    """
     # 创建输出目录
     output_dir = settings.SEGMENTATION_OUTPUT_DIR
     os.makedirs(os.path.join(settings.OUTPUT_DIR, output_dir), exist_ok=True)
@@ -215,10 +310,14 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
     except Exception as e:
         raise Exception(f"模型加载失败: {str(e)}")
     
+    # 存储处理结果
     results = []
+    # 存储处理失败的文件信息
     invalid_files = []
-    temp_files = []  # 存储需要清理的临时文件
+    # 存储需要清理的临时文件
+    temp_files = []
     
+    # 遍历每个文件请求进行处理
     for file_request in file_requests:
         file_id = file_request.id
         file_path = file_request.file_path
@@ -257,6 +356,7 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                 with suppress_stdout_stderr():
                     result = sd_pipeline(processing_path)
             except Exception as e:
+                # 处理音频过短的异常
                 if "The effective audio duration is too short" in str(e):
                     print(f"Skipping {file_path} due to short audio duration.")
                     invalid_files.append(f"{file_path}: The effective audio duration is too short")
@@ -286,9 +386,11 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                 speaker_ids.add(segment[2])
             actual_speakers = len(speaker_ids)
             
+            # 提取文件名和基础名称
             file_name = os.path.basename(local_path)
             base_name, ext = os.path.splitext(file_name)
             
+            # 根据说话人数量确定文件类型
             file_type = get_file_type(actual_speakers)
             segment_files = []
 
@@ -304,6 +406,7 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
             #     for seg in metadata["segments"]
             # ]
 
+            # 提取说话人音频片段
             segment_files = await extract_speaker_audio(local_path, result['text'], os.path.join(output_dir, base_name), actual_speakers)
             
             # 添加到结果列表

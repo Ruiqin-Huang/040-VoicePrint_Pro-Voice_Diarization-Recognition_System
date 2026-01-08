@@ -1,3 +1,21 @@
+"""
+实体抽取服务模块
+
+该模块提供基于大语言模型的实体抽取功能，支持从文本中抽取多种类型的实体。
+主要功能包括：
+- 实体类型定义和Prompt构建
+- 文本预处理和截断
+- 并行实体抽取处理
+- JSON结果解析和验证
+- 时间/日期格式化处理
+
+依赖：
+- app.llm: 大语言模型客户端
+- asyncio: 用于异步并行处理
+- json: 用于JSON解析
+- re: 用于正则表达式处理
+"""
+
 import json
 import re
 import asyncio
@@ -10,16 +28,19 @@ from app.models.entity_extraction import EntityResult
 from app.models.common import ModelInfo
 from app.config.settings import settings
 
+# 创建日志记录器
 logger = logging.getLogger(__name__)
 
 # --- Prompts Definition ---
 
+# 系统提示词：指导大语言模型如何输出结果
 SYSTEM_PROMPT = """你是一个专门用于实体抽取的API。你的唯一任务是根据用户指令，从给定文本中抽取出指定类型的实体，并返回一个原始、干净的JSON对象。
 你绝对禁止输出任何解释、注释、对话或Markdown标记（例如 ```json）。
 不要在JSON中添加任何形式的注释（如//或/**/）。
 你的全部响应必须是一个单一、有效的、可以直接被解析的JSON对象，除此之外别无他物。"""
 
 # 实体类型定义字典，为关键、易混淆的实体提供清晰的描述和格式
+# 用于在Prompt中向大语言模型说明每种实体类型的含义和格式要求
 ENTITY_DEFINITIONS = {
     "手机号": "由数字和特殊字符（如'+', '-', '()'）组成的联系号码，可能包含国家代码和区号。例如'13812345678', '+1 (555) 123-4567'",
     "电话号码": "由数字和特殊字符（如'+', '-', '()'）组成的联系号码，可能包含国家代码和区号。例如'13812345678', '+1 (555) 123-4567'",
@@ -69,7 +90,8 @@ ENTITY_DEFINITIONS = {
     # 对于ENTITY_DEFINITIONS中不存在的实体类型，默认使用通用描述： "指代“{entity_type}”的词语或短语。"
 }
 
-# 更详细、包含“思维链”（Chain-of-Thought）引导的Prompt
+# 更详细、包含"思维链"（Chain-of-Thought）引导的Prompt
+# 用于指导大语言模型进行实体抽取的标准Prompt模板
 ENTITY_EXTRACTION_PROMPT = """
 **任务：** 从给定文本中抽取出所有类型为“{entity_type}”的实体。
 
@@ -97,6 +119,7 @@ ENTITY_EXTRACTION_PROMPT = """
 """
 
 # 针对时间/日期抽取的专用Prompt
+# 用于时间/日期实体抽取的特殊Prompt模板，包含格式化要求
 TIME_DATE_EXTRACTION_PROMPT = """
 **任务：** 从给定文本中抽取出所有类型为“{entity_type}”的实体。
 
@@ -124,7 +147,8 @@ TIME_DATE_EXTRACTION_PROMPT = """
 请开始分析并返回JSON对象。
 """
 
-# 默认实体类型
+# 默认实体类型列表
+# 当用户未指定实体类型时，使用此列表中的所有类型进行抽取
 DEFAULT_ENTITY_TYPES = [
     '电话号码','邮箱地址','人名','地名','组织','军衔','呼号','时间','日期','武器类型','车辆类型','任务代号','部队名称','坐标','频率',
     '警报类型','通信指令','装备型号','加密等级','通播组','通信状态','身份验证码','通播等级','接力站点','呼号后缀','报文类型',
@@ -135,7 +159,18 @@ DEFAULT_ENTITY_TYPES = [
 # --- JSON Parsing Logic ---
 
 def _clean_json_string(json_str: str) -> str:
-    """清理JSON字符串，移除注释和可能导致解析错误的字符。"""
+    """
+    清理JSON字符串，移除注释和可能导致解析错误的字符
+    
+    移除JSON字符串中的单行注释（//）、多行注释（/* */）、
+    多余的换行符和尾随逗号，确保JSON可以被正确解析。
+    
+    Args:
+        json_str: 待清理的JSON字符串
+        
+    Returns:
+        str: 清理后的JSON字符串
+    """
     json_str = re.sub(r'//.*?($|\n)', '', json_str)
     json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
     json_str = json_str.replace('\n', ' ').replace('\r', '')
@@ -145,12 +180,24 @@ def _clean_json_string(json_str: str) -> str:
 
 def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
     """
-    将抽取的原始时间/日期文本规范化为指定格式。
-    此函数按优先级顺序尝试多种正则表达式来解析日期和时间。
+    将抽取的原始时间/日期文本规范化为指定格式
+    
+    此函数按优先级顺序尝试多种正则表达式来解析日期和时间，
+    支持多种时间/日期格式，并将结果格式化为标准格式。
+    
+    Args:
+        raw_text: 抽取出的原始时间/日期文本
+        entity_type: 实体类型（"时间"或"日期"）
+        
+    Returns:
+        str: 格式化后的时间/日期字符串，格式为：
+            - 日期：YYYY-MM-DD 或 YYYY-MM-XX 或 XXXX-MM-DD 等
+            - 时间：YYYY-MM-DD HH:MM:SS 或 HH:MM:SS 等
+            如果无法解析则返回空字符串
     """
     # 初始化所有时间日期组件为占位符
-    year, month, day = 'XXXX', 'XX', 'XX'
-    hour, minute, second = 'XX', 'XX', 'XX'
+    year, month, day = 'XXXX', 'XX', 'XX'  # 年月日占位符
+    hour, minute, second = 'XX', 'XX', 'XX'  # 时分秒占位符
 
     # --- 1. 提取年月日 (按最长、最完整模式优先) ---
 
@@ -258,7 +305,19 @@ def _normalize_datetime_output(raw_text: str, entity_type: str) -> str:
     return raw_text # 对于其他类型或无法解析的情况，返回原始文本
 
 def _truncate_text(text: str, max_length: int) -> str:
-    """截断文本到指定长度，保留完整句子"""
+    """
+    截断文本到指定长度，保留完整句子
+    
+    如果文本长度超过最大限制，尝试在句子边界（句号、问号、感叹号）处截断，
+    以保持文本的完整性。如果找不到合适的截断点，则在指定位置截断并添加省略号。
+    
+    Args:
+        text: 待截断的文本
+        max_length: 最大长度限制
+        
+    Returns:
+        str: 截断后的文本
+    """
     if len(text) <= max_length:
         return text
     
@@ -279,7 +338,20 @@ def _truncate_text(text: str, max_length: int) -> str:
     return truncated + "..."
 
 def _split_text_into_chunks(text: str, chunk_size: int, overlap: int) -> List[str]:
-    """将长文本分割成多个块，保留重叠部分"""
+    """
+    将长文本分割成多个块，保留重叠部分
+    
+    将超过指定长度的文本分割成多个块，每个块之间有重叠部分，
+    以保持上下文的连续性。尝试在标点符号处分割，避免截断句子。
+    
+    Args:
+        text: 待分割的文本
+        chunk_size: 每个块的最大长度
+        overlap: 块之间的重叠长度
+        
+    Returns:
+        List[str]: 分割后的文本块列表
+    """
     if len(text) <= chunk_size:
         return [text]
     
@@ -319,7 +391,20 @@ def _split_text_into_chunks(text: str, chunk_size: int, overlap: int) -> List[st
     return chunks
 
 async def _extract_single_entity_type(text: str, entity_type: str, model_info: ModelInfo) -> List[EntityResult]:
-    """对单一实体类型进行抽取。"""
+    """
+    对单一实体类型进行抽取
+    
+    使用大语言模型从文本中抽取指定类型的实体。支持超时控制，
+    对时间和日期类型进行特殊处理和格式化。
+    
+    Args:
+        text: 待抽取的文本内容
+        entity_type: 要抽取的实体类型
+        model_info: 指定用于抽取的大模型信息
+        
+    Returns:
+        List[EntityResult]: 抽取出的实体结果列表，如果抽取失败或超时则返回空列表
+    """
     try:
         # 截断过长的文本
         max_text_length = settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH
@@ -423,30 +508,49 @@ async def _extract_single_entity_type(text: str, entity_type: str, model_info: M
 async def process_entity_extraction(text: str, model_info: ModelInfo, entity_types: Optional[List[str]] = None) -> List[EntityResult]:
     """
     并行执行多个实体类型的抽取任务
-    :param text: 待抽取的文本
-    :param model_info: 模型调用信息
-    :param entity_types: 自定义的实体类型列表
-    :return: 包含所有抽取结果的字典列表
+    
+    对指定的多个实体类型进行并行抽取，使用信号量控制并发数量，
+    避免资源耗尽。将所有抽取结果合并成一个列表返回。
+    
+    Args:
+        text: 待抽取的文本
+        model_info: 模型调用信息，指定使用的大语言模型
+        entity_types: 自定义的实体类型列表，如果为None则使用默认实体类型列表
+        
+    Returns:
+        List[EntityResult]: 包含所有抽取结果的实体列表，每个元素包含实体类型和名称
     """
     # 验证输入文本
     if not text or not text.strip():
         logger.warning("输入文本为空")
         return []
     
-    # 检查文本长度
+    # 检查文本长度，如果超过限制则截断
     if len(text) > settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH:
         logger.warning(f"文本长度 {len(text)} 超过最大限制 {settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH}，将被截断")
         text = _truncate_text(text, settings.ENTITY_EXTRACTION_MAX_TEXT_LENGTH)
     
+    # 如果未指定实体类型，使用默认列表
     if not entity_types:
         entity_types = DEFAULT_ENTITY_TYPES
     
     # 限制并发任务数量，避免资源耗尽
     max_concurrent = settings.ENTITY_EXTRACTION_MAX_CONCURRENT_TASKS
+    # 创建信号量，控制同时进行的抽取任务数量
     semaphore = asyncio.Semaphore(max_concurrent)
     
     async def _extract_with_semaphore(entity_type: str) -> List[EntityResult]:
-        """带信号量控制的抽取函数"""
+        """
+        带信号量控制的抽取函数
+        
+        使用信号量控制并发，确保同时进行的抽取任务不超过最大并发数。
+        
+        Args:
+            entity_type: 要抽取的实体类型
+            
+        Returns:
+            List[EntityResult]: 抽取结果列表
+        """
         async with semaphore:
             try:
                 return await _extract_single_entity_type(text, entity_type, model_info)
@@ -464,11 +568,14 @@ async def process_entity_extraction(text: str, model_info: ModelInfo, entity_typ
     final_results = []
     for i, result in enumerate(results_from_tasks):
         if isinstance(result, Exception):
+            # 处理异常结果
             logger.error(f"实体类型 '{entity_types[i]}' 抽取任务异常: {str(result)}", exc_info=True)
             continue
         elif isinstance(result, list):
+            # 将列表结果合并到最终结果中
             final_results.extend(result)
         else:
+            # 处理意外的结果类型
             logger.warning(f"实体类型 '{entity_types[i]}' 返回了意外的结果类型: {type(result)}")
         
     return final_results

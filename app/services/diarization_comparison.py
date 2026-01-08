@@ -1,3 +1,24 @@
+"""
+说话人切分及声纹比对服务模块
+
+该模块提供音频说话人切分、声纹特征提取、聚类分析和声纹比对功能。
+主要功能包括：
+- 主被叫切分（Speaker Diarization）
+- VAD（语音活动检测）处理
+- 声纹特征提取和嵌入向量生成
+- t-SNE降维和HDBSCAN聚类
+- 与Milvus声纹库进行相似度比对
+
+依赖：
+- modelscope: 用于说话人切分和VAD
+- speakerlab: 用于音频处理和特征提取
+- sklearn: 用于t-SNE降维
+- hdbscan: 用于聚类分析
+- librosa: 用于音频处理
+- torch: 用于深度学习模型推理
+- pymilvus: 用于向量数据库操作
+"""
+
 import os
 import shutil
 import uuid
@@ -65,13 +86,29 @@ def extend_audio_if_needed(audio_path: str, min_duration: float = 20.0, temp_dir
     return temp_filename, True, audio_duration
 
 class DiarizationComparisonService:
+    """
+    说话人切分及声纹比对服务类
+    
+    负责处理音频文件的主被叫切分、声纹特征提取、聚类分析和声纹比对。
+    """
     def __init__(self):
+        """
+        初始化说话人切分及声纹比对服务
+        
+        创建临时工作目录，设置计算设备（GPU/CPU），准备处理环境。
+        """
+        # 工作空间根目录
         self.workspace = os.path.join(settings.OUTPUT_DIR, "diarization_comparison")
+        # 音频切分结果存储目录
         self.audio_segmentation_dir = os.path.join(self.workspace, "audio_segmentation")
+        # VAD（语音活动检测）结果存储目录
         self.vad_dir = os.path.join(self.workspace, "vad")
+        # 声纹嵌入向量存储目录
         self.emb_dir = os.path.join(self.workspace, "emb")
+        # 计算设备（GPU或CPU）
         self.device = f'cuda:{settings.GPU_ID}' if settings.USE_GPU and torch.cuda.is_available() else 'cpu'
         
+        # 创建必要的目录
         os.makedirs(self.workspace, exist_ok=True)
         os.makedirs(self.audio_segmentation_dir, exist_ok=True)
         os.makedirs(self.vad_dir, exist_ok=True)
@@ -79,11 +116,30 @@ class DiarizationComparisonService:
         print(f"[INFO] Created temporary workspace for comparison: {self.workspace}, Device: {self.device}")
 
     def _run_diarization(self, audio_files: List[str]) -> List[Dict]:
-        """对每个音频文件进行主被叫切分，返回切分后的文件信息列表"""
+        """
+        对每个音频文件进行主被叫切分，返回切分后的文件信息列表
+        
+        处理流程：
+        1. 检查音频长度，如果不足20秒则扩展
+        2. 使用说话人切分模型识别主叫和被叫
+        3. 提取并保存主叫和被叫的音频片段
+        
+        Args:
+            audio_files: 待处理的音频文件绝对路径列表
+            
+        Returns:
+            List[Dict]: 切分后的文件信息列表，每个字典包含：
+                - origin_audio_file: 原始音频文件名
+                - segment_audio_file: 切分后的音频文件名
+                - segment_audio_path: 切分后的音频文件绝对路径
+                - calling_called: 主叫或被叫标识（'calling' 或 'called'）
+        """
         print("++++++++ Stage 1: Speaker Diarization ++++++++")
-        num_speakers = 2  # 固定为2个说话人
+        num_speakers = 2  # 固定为2个说话人（主叫和被叫）
+        # 初始化说话人切分管道
         sd_pipeline = pipeline('speaker-diarization', model=settings.DIARIZATION_MODEL_PATH, model_revision=settings.DIARIZATION_MODEL_REVISION, device=self.device)
         
+        # 存储切分后的文件信息
         segmented_files_info = []
         temp_files_to_cleanup = []  # 用于跟踪需要清理的临时文件
         
@@ -159,9 +215,23 @@ class DiarizationComparisonService:
         return segmented_files_info
 
     def _run_vad_for_segment(self, wav_path: str) -> Optional[Dict]:
-        """对单个音频片段执行VAD检测"""
+        """
+        对单个音频片段执行VAD（语音活动检测）
+        
+        识别音频中的有效语音段，过滤掉静音部分。
+        
+        Args:
+            wav_path: 音频文件的绝对路径
+            
+        Returns:
+            Optional[Dict]: VAD检测结果字典，键为片段ID，值为包含文件路径、起始和结束时间的字典。
+                          如果检测失败则返回None
+        """
+        # 提取文件名（不含扩展名）作为工作ID
         wid = os.path.basename(wav_path).rsplit('.', 1)[0]
+        # VAD结果JSON文件路径
         vad_json_path = os.path.join(self.vad_dir, wid + '_vad.json')
+        # 初始化VAD管道
         vad_pipeline = pipeline(
             task=Tasks.voice_activity_detection,
             model=settings.VAD_MODEL_PATH,
@@ -199,27 +269,45 @@ class DiarizationComparisonService:
             return None
 
     def _prepare_subsegments(self, wav_path: str, vad_data: Dict) -> Dict:
-        """根据VAD结果生成子片段"""
+        """
+        根据VAD结果生成子片段
+        
+        将VAD检测到的语音段切分为1秒的子片段，步长为0.5秒（有重叠），用于后续特征提取。
+        
+        Args:
+            wav_path: 音频文件的绝对路径
+            vad_data: VAD检测结果字典
+            
+        Returns:
+            Dict: 子片段数据字典，键为子片段ID，值为包含文件路径、起始时间、结束时间和时长的字典
+        """
+        # 提取文件名（不含扩展名）作为工作ID
         wid = os.path.basename(wav_path).rsplit('.', 1)[0]
+        # 子片段结果JSON文件路径
         subseg_json_path = os.path.join(self.vad_dir, wid + '_subseg.json')
         
+        # 存储子片段数据
         subseg_data = {}
         for segid, data in vad_data.items():
-            st, ed = float(data['start']), float(data['stop'])
-            subseg_st = st
+            st, ed = float(data['start']), float(data['stop'])  # 起始和结束时间
+            subseg_st = st  # 子片段起始时间
             while subseg_st < ed:
+                # 计算子片段结束时间，最大不超过1秒或原段结束时间
                 subseg_ed = min(subseg_st + 1.0, ed)
+                # 如果子片段长度小于0.5秒，跳过
                 if subseg_ed - subseg_st < 0.5:  # 小于0.5秒的片段跳过
                     break
+                # 创建子片段数据项
                 item = deepcopy(data)
                 item.update({
                     'start': round(subseg_st, 2),
                     'stop': round(subseg_ed, 2),
                     'duration': round(subseg_ed - subseg_st, 2)
                 })
+                # 生成子片段ID
                 subseg_id = f"{wid}_{round(subseg_st, 2)}_{round(subseg_ed, 2)}"
                 subseg_data[subseg_id] = item
-                subseg_st += 0.5  # 步长为0.5秒
+                subseg_st += 0.5  # 步长为0.5秒（50%重叠）
                 
         with open(subseg_json_path, 'w') as f:
             json.dump(subseg_data, f, indent=2)
@@ -228,7 +316,20 @@ class DiarizationComparisonService:
 
     def _extract_avg_embedding(self, wav_path: str, subseg_data: Dict, 
                               feature_extractor, embedding_model) -> Optional[np.ndarray]:
-        """提取子片段嵌入并计算平均嵌入"""
+        """
+        提取子片段嵌入并计算平均嵌入
+        
+        对音频的所有子片段提取声纹特征，然后计算平均嵌入向量。
+        
+        Args:
+            wav_path: 音频文件的绝对路径
+            subseg_data: 子片段数据字典
+            feature_extractor: 特征提取器对象，用于提取音频特征
+            embedding_model: 嵌入模型对象，用于生成声纹嵌入向量
+            
+        Returns:
+            Optional[np.ndarray]: 192维的平均声纹嵌入向量，如果提取失败则返回None
+        """
         try:
             wav = load_audio(wav_path, obj_fs=feature_extractor.sample_rate)
             sr = feature_extractor.sample_rate
@@ -276,8 +377,20 @@ class DiarizationComparisonService:
             return None
 
     def _compute_cosine_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:
-        """计算两个归一化向量的余弦相似度"""
-        # 归一化
+        """
+        计算两个归一化向量的余弦相似度
+        
+        通过计算两个向量的点积（归一化后）来得到余弦相似度，范围在[-1, 1]之间。
+        对于声纹特征向量，通常值在[0, 1]之间，值越大表示相似度越高。
+        
+        Args:
+            emb1: 第一个嵌入向量
+            emb2: 第二个嵌入向量
+            
+        Returns:
+            float: 余弦相似度分数，范围通常在[0, 1]之间
+        """
+        # 归一化向量
         emb1_norm = emb1 / np.linalg.norm(emb1)
         emb2_norm = emb2 / np.linalg.norm(emb2)
         # 计算点积（即余弦相似度）
@@ -285,6 +398,31 @@ class DiarizationComparisonService:
         return float(similarity)
 
     async def run_pipeline(self, audio_files: List[str], collection_name: str) -> Dict:
+        """
+        执行完整的说话人切分及声纹比对流程
+        
+        处理流程：
+        1. 主被叫切分：将音频切分为主叫和被叫两个片段
+        2. 加载声纹库：从Milvus加载目标声纹库
+        3. 准备模型：初始化特征提取器和嵌入模型
+        4. 提取声纹：为所有切分片段提取声纹特征
+        5. 聚类分析：使用t-SNE降维和HDBSCAN聚类
+        6. 声纹比对：将切分片段与声纹库进行相似度比对
+        
+        Args:
+            audio_files: 待处理的音频文件绝对路径列表
+            collection_name: 用于比对的目标声纹库集合名称
+            
+        Returns:
+            Dict: 包含以下键的字典：
+                - collection_name: 参与比较的目标说话人声纹库集合名称
+                - comparison_results: 所有音频片段的切分和比对结果列表
+                - cluster_results: 所有分割音频的聚类结果列表
+                
+        Raises:
+            RuntimeError: 当无法切分说话人片段或提取声纹特征时抛出
+        """
+        # 存储比对结果
         comparison_results = []
         
         try:
@@ -296,26 +434,36 @@ class DiarizationComparisonService:
 
             # 2. 加载声纹库
             print("++++++++ Stage 2: Loading Voiceprint Library from Milvus ++++++++")
+            # 创建Milvus客户端
             mc = MilvusClient(config={"host": settings.MILVUS_HOST, "port": settings.MILVUS_PORT})
+            # 获取所有人员的平均嵌入向量
             voiceprint_library = mc.get_all_person_avg_embeddings(collection_name)
             if not voiceprint_library:
                 print(f"[WARN] Voiceprint library '{collection_name}' is empty. All segments will be 'unknown'.")
 
             # 3. 准备模型
             print("++++++++ Stage 3: Preparing Models ++++++++")
+            # 配置文件路径
             conf_path = os.path.join(self.workspace, 'diar.yaml')
+            # 写入配置文件
             with open(conf_path, 'w', encoding='utf-8') as f:
                 f.write(settings.DIAR_CLUSTER_CONFIG_CONTENT)
+            # 构建配置对象
             conf = build_config(conf_path)
+            # 构建特征提取器和嵌入模型
             feature_extractor = build('feature_extractor', conf)
             embedding_model = build('embedding_model', conf)
+            # 加载预训练的嵌入模型权重
             model_path = os.path.join(settings.SPEAKER_EMBEDDING_MODEL_PATH, settings.SPEAKER_EMBEDDING_MODEL_FILE)
             embedding_model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            # 设置为评估模式并移动到指定设备
             embedding_model.eval().to(self.device)
 
             # 4. 提取所有分割片段的声纹
             print("++++++++ Stage 4: Extracting Embeddings for All Segments ++++++++")
+            # 存储所有有效的声纹嵌入向量
             all_segment_embeddings = []
+            # 存储对应的片段信息
             valid_segments_info = []
             for segment_info in tqdm(segmented_files, desc="Extracting Embeddings"):
                 segment_path = segment_info["segment_audio_path"]
@@ -339,38 +487,43 @@ class DiarizationComparisonService:
             if not all_segment_embeddings:
                 raise RuntimeError("未能从任何分割片段中提取有效的声纹特征。")      
             
-            # 5. t-SNE降维和谱聚类
+            # 5. t-SNE降维和HDBSCAN聚类
             print("++++++++ Stage 5: Clustering Segments ++++++++")
+            # 将嵌入向量列表转换为numpy数组
             embeddings_array = np.array(all_segment_embeddings)
 
+            # 使用t-SNE将高维嵌入向量降维到2维，用于可视化
             tsne = TSNE(n_components=2, random_state=42, perplexity=min(5, len(embeddings_array)-1))
             embeddings_2d = tsne.fit_transform(embeddings_array)
 
+            # 使用HDBSCAN进行聚类分析
             cluster_model = hdbscan.HDBSCAN(
-                min_cluster_size=2,
-                cluster_selection_method='leaf'
+                min_cluster_size=2,  # 最小聚类大小为2
+                cluster_selection_method='leaf'  # 使用叶子节点选择方法
             )
+            # 执行聚类，返回每个样本的聚类标签（-1表示噪声点）
             cluster_labels = cluster_model.fit_predict(embeddings_2d)
 
-            # 重新映射聚类标签：将-1转换为新的独立类别
+            # 重新映射聚类标签：将-1（噪声点）转换为新的独立类别
             # 步骤1: 找到所有非噪声标签的最大值
             max_label = np.max(cluster_labels[cluster_labels >= 0]) if np.any(cluster_labels >= 0) else -1
             # 步骤2: 为每个噪声点分配新的唯一标签
             new_labels = []
             next_label = max_label + 1  # 新标签起始值
             for label in cluster_labels:
-                if label == -1:
+                if label == -1:  # 噪声点
                     new_labels.append(next_label)
                     next_label += 1
                 else:
                     new_labels.append(label)
 
+            # 构建聚类结果列表
             cluster_results = [
                 {
                     "segment_audio_file": info["segment_audio_file"],
-                    "x_coordinate": float(coords[0]),
-                    "y_coordinate": float(coords[1]),
-                    "cluster_id": int(label)
+                    "x_coordinate": float(coords[0]),  # t-SNE降维后的X坐标
+                    "y_coordinate": float(coords[1]),  # t-SNE降维后的Y坐标
+                    "cluster_id": int(label)  # 聚类ID
                 }
                 for info, coords, label in zip(valid_segments_info, embeddings_2d, new_labels)
             ]
