@@ -733,7 +733,7 @@ data数组中的每个对象包含以下字段：
 | 字段名 | 类型 | 说明 |
 | ------ | ---- | ---- |
 | file_id | String | 原切分文件id |
-| file_type | String | 语音类别（"单人"、"双人"、"多人"、"未知"或"错误"） |
+| file_type | String | 语音类别（"单人"、"双人"、"多人"、"未知，该条音频过短或未检测到人声"） |
 | segment_files | Array[Object] | 切分后的文件集合 |
 
 segment_files数组中的每个对象包含以下字段：

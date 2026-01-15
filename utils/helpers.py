@@ -21,7 +21,7 @@ def get_file_type(speaker_count):
     """根据说话人数量确定语音类别"""
     if speaker_count == 1:
         return "单人"
-    elif speaker_count == 2:
+    elif speaker_count >= 2:
         return "双人"
     else:
-        return "多人"
+        return "未知，该条音频过短或未检测到人声"
