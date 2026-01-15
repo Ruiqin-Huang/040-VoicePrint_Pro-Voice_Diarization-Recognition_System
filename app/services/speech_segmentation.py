@@ -29,11 +29,19 @@ from app.models.speech_segmentation import FileRequest
 
 from app.config.settings import settings
 from app.config.path_mapper import PathMapper
-from utils.helpers import get_file_type
 from utils.io_suppressor import suppress_stdout_stderr
 import requests
 import tempfile 
 from urllib.parse import urlparse
+
+def get_file_type(speaker_count):
+    """根据说话人数量确定语音类别"""
+    if speaker_count == 1:
+        return "单人"
+    elif speaker_count >= 2:
+        return "双人"
+    else:
+        return "未知，该条音频过短或未检测到人声"
 
 def extend_audio_if_needed(audio_path: str, min_duration: float = 20.0, temp_dir: str = None) -> tuple:
     """
