@@ -43,6 +43,12 @@ MODEL_CONFIG = {
 _MODELS = {}
 # _TOKENIZERS = {}  # 新增tokenizer缓存，用于small100（已注释）
 
+# 强标点（句子级）
+STRONG_PUNCT = set("。！？.!?")
+
+# 弱标点（短语级）
+WEAK_PUNCT = set("，,；;：:、")
+
 def load_model(model_type: str = "m2m100"):
     """
     加载指定类型的翻译模型和分词器
@@ -68,6 +74,63 @@ def load_model(model_type: str = "m2m100"):
         # 缓存模型和分词器
         _MODELS[model_type] = (model, tokenizer)
     return _MODELS[model_type]
+
+def _split_text(
+    text: str,
+    max_len: int = 300
+):
+    """
+    将文本按照最大长度分割成多个片段
+
+    采用智能分割策略，优先在强标点（句子级）处分割，其次在弱标点（短语级）处分割，
+    以保持文本的语义完整性。
+
+    Args:
+        text: 待分割的文本
+        max_len: 单个片段的最大长度，默认为300
+
+    Returns:
+        List[str]: 分割后的文本片段列表
+    """
+    text = text.strip()
+    if not text:
+        return []
+
+    segments = []
+
+    start = 0
+    last_strong = -1
+    last_weak = -1
+
+    for i, ch in enumerate(text):
+        # 记录最近标点
+        if ch in STRONG_PUNCT:
+            last_strong = i
+        elif ch in WEAK_PUNCT:
+            last_weak = i
+
+        # 是否超过长度
+        if i - start + 1 >= max_len:
+            # 优先强标点
+            if last_strong >= start:
+                cut = last_strong + 1
+            elif last_weak >= start:
+                cut = last_weak + 1
+            else:
+                cut = i + 1
+
+            segments.append(text[start:cut].strip())
+            start = cut
+
+            # 重置标点位置（防止越界）
+            last_strong = -1
+            last_weak = -1
+
+    # 处理尾部
+    if start < len(text):
+        segments.append(text[start:].strip())
+
+    return segments
 
 def translate_text(
     text: str,
@@ -142,8 +205,14 @@ async def process_translation(
     # 使用进度条显示翻译进度
     for text in tqdm(file_requests, desc="Translating text"):
         try:
-            # 执行翻译
-            translated = translate_text(text, source_lang, target_lang, model_type)
+            # 文本切段
+            segments = _split_text(text)
+            translated_text = ""
+
+            for segment in segments:
+                # 执行翻译
+                translated = translate_text(segment, source_lang, target_lang, model_type)
+                translated_text += translated
 
             # 构建翻译结果
             processed_files.append({
@@ -152,7 +221,7 @@ async def process_translation(
                 "source_text": text,
                 "target_lang": target_lang,
                 "target_lang_name": settings.LANG_DICT.get(target_lang, "其他语言"),
-                "translated_text": translated,
+                "translated_text": translated_text,
                 "model_name": MODEL_CONFIG[model_type]["model_name"]
             })
         except Exception as e:
