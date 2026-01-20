@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # === 模型路径配置 ===
     MODEL_DIR: str = "./pretrained_models"  # 预训练模型根目录
     WHISPER_CACHE_DIR: str = "./pretrained_models/whisper"  # Whisper语音识别模型缓存目录
-    WHISPER_MODEL_SIZE: str = "medium"  # Whisper模型大小：tiny/base/small/medium/large
+    WHISPER_MODEL_SIZE: str = "turbo"  # Whisper模型大小：tiny/base/small/medium/large/turbo
     DIARIZATION_MODEL_PATH: str = "./pretrained_models/iic/speech_campplus_speaker-diarization_common"  # 说话人分离模型路径
     DIARIZATION_MODEL_REVISION: str = "v1.0.0"  # 说话人分离模型版本
     VAD_MODEL_PATH: str = "./pretrained_models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"  # 语音活动检测模型路径

@@ -269,7 +269,7 @@ async def process_ocr_files(file_requests: List[Dict]):
     # 使用进度条显示处理进度
     pbar = tqdm(
         file_requests,
-        desc=f"[OCR-Worker][PID={os.getpid()}] Processing",
+        desc=f"[OCR-Worker][GPU={os.getenv('OCR_WORKER_GPU_ID', '0')}][PID={os.getpid()}] Processing",
         file=sys.stderr
     )
 
@@ -279,7 +279,7 @@ async def process_ocr_files(file_requests: List[Dict]):
         file_path = file_request['file_path']
 
         # 更新进度条描述
-        pbar.set_description(f"[OCR-Worker][PID={os.getpid()}] Processing: {os.path.basename(file_path)}")
+        pbar.set_description(f"[OCR-Worker][GPU={os.getenv('OCR_WORKER_GPU_ID', '0')}][PID={os.getpid()}] Processing: {os.path.basename(file_path)}")
 
         try:
             # 处理URL或本地路径：如果是URL，先下载到本地临时文件
@@ -432,7 +432,7 @@ async def main():
             try:
                 # 清理GPU缓存（如果可用）
                 paddle.device.cuda.empty_cache()
-                paddle.device.cuda.synchronize()
+                paddle.device.synchronize()
             except Exception:
                 pass  # 忽略清理失败
 
