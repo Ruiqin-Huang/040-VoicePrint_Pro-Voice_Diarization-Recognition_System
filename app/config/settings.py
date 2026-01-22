@@ -120,8 +120,8 @@ embedding_model:
 """
 
     # === LLM（大语言模型）配置 ===
-    # llm_mode: 'local_hf' 使用本地HuggingFace模型, 'api' 使用Ollama API
-    llm_mode: Literal['local_hf', 'ollama_api'] = 'ollama_api'
+    # llm_mode: 'local_hf' 使用本地HuggingFace模型, 'ollama_api' 使用Ollama API, 'vllm' 使用vLLM API
+    llm_mode: Literal['local_hf', 'ollama_api', 'vllm'] = 'ollama_api'
 
     # 本地HuggingFace模型模式配置
     llm_hf_path: Optional[str] = "./pretrained_models/qwen1.5-7b-chat-hf"  # 本地HF模型目录路径
@@ -130,6 +130,10 @@ embedding_model:
     # Ollama API模式配置
     llm_api_endpoint: Optional[str] = "http://localhost:11434/api/generate"  # Ollama API服务地址
     llm_model_name: Optional[str] = "deepseek-r1:7b"  # Ollama中部署的模型名称
+
+    # vLLM API模式配置
+    vllm_api_endpoint: Optional[str] = "http://localhost:8000/v1/chat/completions"  # vLLM API服务地址
+    vllm_model_name: Optional[str] = "qwen1.5-7b-chat"  # vLLM中部署的模型名称
 
     # === 实体抽取配置 ===
     ENTITY_EXTRACTION_MAX_TEXT_LENGTH: int = 10000  # 最大文本长度限制（字符数）

@@ -118,6 +118,57 @@ async def generate_text(system_prompt: str, user_prompt: str, model_info: ModelI
         if last_exception:
             raise last_exception
 
+    elif model_info.model_call_type == 'vllm':
+        # 方式三：调用 vLLM API
+        if not model_info.api_address or not model_info.model_name:
+            raise ValueError("vLLM_API_ENDPOINT and vLLM_MODEL_NAME must be configured for 'vllm' mode.")
+        
+        client = get_http_client()
+        
+        payload = {
+            "model": model_info.model_name,
+            "messages": messages,
+            "temperature": 0.1,
+            "top_p": 0.95,
+            "max_tokens": 512,
+            "stream": False
+        }
+        
+        # 添加重试机制
+        max_retries = 2
+        last_exception = None
+        for attempt in range(max_retries + 1):
+            try:
+                response = await asyncio.wait_for(
+                    client.post(model_info.api_address, json=payload),
+                    timeout=settings.ENTITY_EXTRACTION_TIMEOUT
+                )
+                response.raise_for_status()
+                # vLLM OpenAI兼容API返回的响应在 'choices[0].message.content'
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
+            except asyncio.TimeoutError:
+                last_exception = TimeoutError(f"vLLM API调用超时（超过{settings.ENTITY_EXTRACTION_TIMEOUT}秒）")
+                if attempt < max_retries:
+                    await asyncio.sleep(1)  # 等待1秒后重试
+                    continue
+                raise last_exception
+            except httpx.HTTPStatusError as e:
+                last_exception = e
+                if e.response.status_code >= 500 and attempt < max_retries:  # 服务器错误才重试
+                    await asyncio.sleep(1)
+                    continue
+                raise
+            except Exception as e:
+                last_exception = e
+                if attempt < max_retries:
+                    await asyncio.sleep(1)
+                    continue
+                raise
+        
+        if last_exception:
+            raise last_exception
+
     elif model_info.model_call_type == 'local_hf':
         # 方式二：调用本地 Hugging Face 模型
         if not model_info.model_dir:

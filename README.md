@@ -1266,11 +1266,12 @@ files对象包含以下字段：
 
 ##### 1. 模型加载与配置
 
-当前接口支持两种大模型加载方式，您可以通过`model_info`参数动态指定使用哪种模型。
+当前接口支持三种大模型加载方式，您可以通过`model_info`参数动态指定使用哪种模型。
 
 -   **支持的方式**:
     1.  `ollama_api`: 通过网络请求调用本地部署的Ollama API服务。
     2.  `local_hf`: 直接加载本地存储的Hugging Face格式的模型文件。
+    3.  `vllm`: 通过网络请求调用本地部署的vLLM API服务。
 
 ##### 2. 提升抽取准确率 
 
@@ -1305,9 +1306,9 @@ files对象包含以下字段：
 `model_info` 对象包含以下字段：
 | 参数名 | 类型 | 必填 | 描述 |
 | ------ | ---- | ---- | ---- |
-| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'` 或 `'ollama_api'` 之一。 |
-| model_name | String | `ollama_api` 模式下是 | Ollama中部署的模型名称，例如 `"deepseek-r1:7b"`。 |
-| api_address | String | `ollama_api` 模式下是 | Ollama API服务地址，例如 `"http://localhost:11434/api/generate"`。 |
+| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'`、`'ollama_api'` 或 `'vllm'` 之一。 |
+| model_name | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM中部署的模型名称，例如 `"deepseek-r1:7b"` 或 `"qwen1.5-7b-chat"`。 |
+| api_address | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM API服务地址，例如 `"http://localhost:11434/api/generate"` 或 `"http://localhost:8000/v1/chat/completions"`。 |
 | model_dir | String | `local_hf` 模式下是 | 本地Hugging Face格式模型所在的目录路径。 |
 
 请求体示例（使用Ollama API）：
@@ -1330,6 +1331,19 @@ files对象包含以下字段：
   "model_info": {
       "model_call_type": "local_hf",
       "model_dir": "./pretrained_models/qwen1.5-7b-chat-hf"
+  }
+}
+```
+
+请求体示例（使用vLLM API）：
+```json
+{
+  "text": "张三出生于北京，任职于百度",
+  "entity_types": ["人名", "地名", "组织"],
+  "model_info": {
+      "model_call_type": "vllm",
+      "model_name": "qwen1.5-7b-chat",
+      "api_address": "http://localhost:8000/v1/chat/completions"
   }
 }
 ```
@@ -1403,9 +1417,9 @@ API响应使用JSON格式，包含以下字段：
 `model_info` 对象包含以下字段：
 | 参数名 | 类型 | 必填 | 描述 |
 | ------ | ---- | ---- | ---- |
-| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'` 或 `'ollama_api'` 之一。 |
-| model_name | String | `ollama_api` 模式下是 | Ollama中部署的模型名称，例如 `"deepseek-r1:7b"`。 |
-| api_address | String | `ollama_api` 模式下是 | Ollama API服务地址，例如 `"http://localhost:11434/api/generate"`。 |
+| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'`、`'ollama_api'` 或 `'vllm'` 之一。 |
+| model_name | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM中部署的模型名称，例如 `"deepseek-r1:7b"` 或 `"qwen1.5-7b-chat"`。 |
+| api_address | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM API服务地址，例如 `"http://localhost:11434/api/generate"` 或 `"http://localhost:8000/v1/chat/completions"`。 |
 | model_dir | String | `local_hf` 模式下是 | 本地Hugging Face格式模型所在的目录路径。 |
 
 请求体示例（通过ollama api调用）：
@@ -1435,6 +1449,22 @@ API响应使用JSON格式，包含以下字段：
   "model_info": {
       "model_call_type": "local_hf",
       "model_dir": "./pretrained_models/qwen1.5-7b-chat-hf"
+  }
+}
+```
+
+请求体示例（通过vllm api调用）：
+```json
+{
+  "text": "2020年5月20日，光速汽车在重庆发布了电动汽车"极光"。5月25日，光速汽车与速驰集团在成都签署了合作协议。5月30日，速驰集团在上海完成了对光速汽车的并购。",
+  "events_info": [
+    {"event_type": "新车发布", "argument_types": ["发布方", "车型", "时间", "地点"]},
+    {"event_type": "公司并购", "argument_types": ["并购方", "被并购方", "时间", "地点"]}
+  ],
+  "model_info": {
+      "model_call_type": "vllm",
+      "model_name": "qwen1.5-7b-chat",
+      "api_address": "http://localhost:8000/v1/chat/completions"
   }
 }
 ```

@@ -7,15 +7,15 @@ class ResponseResult(BaseModel):
     data: Optional[Any] = None
     
 class ModelInfo(BaseModel):
-    model_call_type: Literal['local_hf', 'ollama_api'] = Field(..., description="'local_hf' 或 'ollama_api'")
-    model_name: Optional[str] = Field(None, description="当 model_call_type 为 'ollama_api' 时必须提供")
-    api_address: Optional[str] = Field(None, description="当 model_call_type 为 'ollama_api' 时必须提供")
+    model_call_type: Literal['local_hf', 'ollama_api', 'vllm'] = Field(..., description="'local_hf', 'ollama_api' 或 'vllm'")
+    model_name: Optional[str] = Field(None, description="当 model_call_type 为 'ollama_api' 或 'vllm' 时必须提供")
+    api_address: Optional[str] = Field(None, description="当 model_call_type 为 'ollama_api' 或 'vllm' 时必须提供")
     model_dir: Optional[str] = Field(None, description="当 model_call_type 为 'local_hf' 时必须提供")
 
     @validator('model_name', 'api_address', always=True)
-    def check_ollama_fields(cls, v, values):
-        if values.get('model_call_type') == 'ollama_api' and not v:
-            raise ValueError("当 model_call_type 为 'ollama_api' 时, model_name 和 api_address 不能为空")
+    def check_api_fields(cls, v, values):
+        if values.get('model_call_type') in ['ollama_api', 'vllm'] and not v:
+            raise ValueError(f"当 model_call_type 为 '{values.get('model_call_type')}' 时, model_name 和 api_address 不能为空")
         return v
 
     @validator('model_dir', always=True)
