@@ -463,9 +463,9 @@ python -m local.language_detection -f 文本路径1,文本路径2...
 ```
 
 #### 参数说明
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `-f/--files` | 是 | 文本文件路径，支持：<br>- 本地文本文件(.txt/.csv等)<br>- HTTP/HTTPS URL文件<br>- 通配符模式（如`"*.txt"`）|
+| 参数         | 必填 | 说明                                                                                                       |
+| ------------ | ---- | ---------------------------------------------------------------------------------------------------------- |
+| `-f/--files` | 是   | 文本文件路径，支持：<br>- 本地文本文件(.txt/.csv等)<br>- HTTP/HTTPS URL文件<br>- 通配符模式（如`"*.txt"`） |
 
 #### 输出示例
 ```text
@@ -506,9 +506,9 @@ python -m local.image_ocr -f 图片路径1,图片路径2...
 ```
 
 #### 参数说明
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `-f/--files` | 是 | 图片路径列表，支持：<br>- 本地路径（绝对/相对路径）<br>- 通配符模式（需加引号，如`"*.png"`）<br>- 多个文件用逗号分隔 |
+| 参数         | 必填 | 说明                                                                                                                 |
+| ------------ | ---- | -------------------------------------------------------------------------------------------------------------------- |
+| `-f/--files` | 是   | 图片路径列表，支持：<br>- 本地路径（绝对/相对路径）<br>- 通配符模式（需加引号，如`"*.png"`）<br>- 多个文件用逗号分隔 |
 
 #### 输出示例
 ```text
@@ -547,12 +547,12 @@ python -m local.translation -f 文本路径1,文本路径2... -s 源语言代码
 ```
 
 #### 参数说明
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `-f/--files` | 是 | 文本文件路径，支持：<br>• 单文件路径 (`./file.txt`)<br>• 逗号分隔多文件 (`file1.txt,file2.txt`)<br>• 通配符模式 (`"*.txt"`，需引号) |
-| `-s/--source-lang` | 是 | 源语言ISO 639-1代码（如 `zh`/`mn`等） |
-| `-t/--target-lang` | 是 | 目标语言ISO 639-1代码 |
-| `--model-type` | 否 | 模型名称，`m2m100` (默认) 或 `small100` |
+| 参数               | 必填 | 说明                                                                                                                                |
+| ------------------ | ---- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `-f/--files`       | 是   | 文本文件路径，支持：<br>• 单文件路径 (`./file.txt`)<br>• 逗号分隔多文件 (`file1.txt,file2.txt`)<br>• 通配符模式 (`"*.txt"`，需引号) |
+| `-s/--source-lang` | 是   | 源语言ISO 639-1代码（如 `zh`/`mn`等）                                                                                               |
+| `-t/--target-lang` | 是   | 目标语言ISO 639-1代码                                                                                                               |
+| `--model-type`     | 否   | 模型名称，`m2m100` (默认) 或 `small100`                                                                                             |
 
 #### 输出示例
 ```text
@@ -590,21 +590,21 @@ python -m local.translation -f ./local/language_detection_test.txt -s mn -t zh -
 
 #### 公用数据规范
 
-| 字段名 | 说明 |
-| ------ | ---- |
-| 日期 | 格式为yyyy-MM-dd HH:mm:ss |
-| data | 请求返回报文 |
-| retcode | 返回码；默认为200000：请求成功 |
-| msg | 返回失败提示信息 |
-| 编码方式 | UTF-8 |
+| 字段名   | 说明                           |
+| -------- | ------------------------------ |
+| 日期     | 格式为yyyy-MM-dd HH:mm:ss      |
+| data     | 请求返回报文                   |
+| retcode  | 返回码；默认为200000：请求成功 |
+| msg      | 返回失败提示信息               |
+| 编码方式 | UTF-8                          |
 
 #### 响应码说明
 
-| 响应码 | 说明 |
-| ------ | ---- |
-| 200000 | 请求成功 |
+| 响应码 | 说明         |
+| ------ | ------------ |
+| 200000 | 请求成功     |
 | 100000 | 请求参数错误 |
-| 905000 | 操作错误 |
+| 905000 | 操作错误     |
 | 999999 | 未知异常错误 |
 
 ### 运行说明
@@ -699,15 +699,15 @@ docker rm voiceprint-api
 
 请求体使用JSON格式，包含以下字段：
 
-| 参数名 | 类型 | 必填 | 描述 |
-| ------ | ---- | ---- | ---- |
-| files | Array[Object] | 是 | 语音文件素材地址数组 |
+| 参数名 | 类型          | 必填 | 描述                                                  |
+| ------ | ------------- | ---- | ----------------------------------------------------- |
+| files  | Array[Object] | 是   | 语音文件素材地址数组（本地相对路径或可直接访问的URL） |
 
 files对象包含以下字段：
-| 参数名 | 类型 | 必填 | 描述 |
-| ------ | ---- | ---- | ---- |
-| id | String | 是 | 文本id |
-| file_path | String | 是 | 文本路径（此路径为本地路径，可由调用方地址映射到语音container的某个目录） |
+| 参数名    | 类型   | 必填 | 描述                                                                 |
+| --------- | ------ | ---- | -------------------------------------------------------------------- |
+| id        | String | 是   | 文本id                                                               |
+| file_path | String | 是   | 音频路径；支持容器内相对输入目录的本地路径，或可下载的HTTP/HTTPS URL |
 
 请求体示例：
 ```json
@@ -723,23 +723,24 @@ files对象包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| retcode | Integer | 响应码，200000表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Array[Object] | 响应数据，包含处理结果，失败时可能为null |
+| 字段名  | 类型          | 说明                                     |
+| ------- | ------------- | ---------------------------------------- |
+| retcode | Integer       | 响应码，200000表示成功                   |
+| msg     | String        | 响应消息，描述请求处理结果               |
+| data    | Array[Object] | 响应数据，包含处理结果，失败时可能为null |
 
 data数组中的每个对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| file_id | String | 原切分文件id |
-| file_type | String | 语音类别（"单人"、"双人"、"未知，该条音频过短或未检测到人声"） |
-| segment_files | Array[Object] | 切分后的文件集合 |
+| 字段名        | 类型          | 说明                                                           |
+| ------------- | ------------- | -------------------------------------------------------------- |
+| file_id       | String        | 原切分文件id                                                   |
+| file_type     | String        | 语音类别（"单人"、"双人"、"未知，该条音频过短或未检测到人声"） |
+| segment_files | Array[Object] | 切分后的文件集合                                               |
+| metadata      | String        | 分割结果元数据文件路径（相对输出目录）                         |
 
 segment_files数组中的每个对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| id | String | 切分后的文件id |
+| 字段名   | 类型   | 说明             |
+| -------- | ------ | ---------------- |
+| id       | String | 切分后的文件id   |
 | file_url | String | 切分后的文件地址 |
 
 成功响应示例：
@@ -751,6 +752,7 @@ segment_files数组中的每个对象包含以下字段：
     {
       "file_id": "1234",
       "file_type": "双人",
+      "metadata": "./data/output/speech_segmentation/audio1/audio1.json",
       "segment_files": [
         {
           "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
@@ -781,11 +783,11 @@ segment_files数组中的每个对象包含以下字段：
 
 请求体使用JSON格式，包含以下字段：
 
-| 参数名 | 类型 | 必填 | 描述 |
-| --- | --- | --- | --- |
-| person_ids | Array[String] | 是 | 人员ID列表。其长度必须与 `audio_files` 列表的长度相等。 |
-| audio_files | Array[String] | 是 | 待注册的音频文件路径列表。每个文件中应只包含一个说话人的语音。 |
-| collection_name | String | 否 | 指定存入的Milvus集合名称。如果未提供，将使用服务器配置文件中的默认集合。 |
+| 参数名          | 类型          | 必填 | 描述                                                                     |
+| --------------- | ------------- | ---- | ------------------------------------------------------------------------ |
+| person_ids      | Array[String] | 是   | 人员ID列表。其长度必须与 `audio_files` 列表的长度相等。                  |
+| audio_files     | Array[String] | 是   | 待注册的音频文件路径列表。每个文件中应只包含一个说话人的语音。           |
+| collection_name | String        | 否   | 指定存入的Milvus集合名称。如果未提供，将使用服务器配置文件中的默认集合。 |
 
 请求体示例：
 ```json
@@ -814,25 +816,25 @@ segment_files数组中的每个对象包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| retcode | Integer | 响应码，`200000`表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Object | 响应数据，包含注册结果的详细信息，失败时为 `null` |
+| 字段名  | 类型    | 说明                                              |
+| ------- | ------- | ------------------------------------------------- |
+| retcode | Integer | 响应码，`200000`表示成功                          |
+| msg     | String  | 响应消息，描述请求处理结果                        |
+| data    | Object  | 响应数据，包含注册结果的详细信息，失败时为 `null` |
 
 `data` 对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| collection_name | String | 数据被插入的目标集合的名称。 |
-| inserted_count | Integer | 本次请求成功插入到数据库的记录总数。 |
+| 字段名          | 类型          | 说明                                                                         |
+| --------------- | ------------- | ---------------------------------------------------------------------------- |
+| collection_name | String        | 数据被插入的目标集合的名称。                                                 |
+| inserted_count  | Integer       | 本次请求成功插入到数据库的记录总数。                                         |
 | inserted_result | Array[Object] | 每条记录的详细信息，包括音频文件路径、音频对应的人员ID和插入时生成的主键ID。 |
 
 `inserted_result` 对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| audio_file | String | 输入的音频文件名。 |
-| person_id | String | 对应的人员ID。 |
-| id | String | 插入记录在Milvus中生成的主键ID。原为Integer格式，后转为String格式。 |
+| 字段名     | 类型   | 说明                                                                |
+| ---------- | ------ | ------------------------------------------------------------------- |
+| audio_file | String | 输入的音频文件名。                                                  |
+| person_id  | String | 对应的人员ID。                                                      |
+| id         | String | 插入记录在Milvus中生成的主键ID。原为Integer格式，后转为String格式。 |
 
 成功响应示例：
 ```json
@@ -914,10 +916,10 @@ API响应使用JSON格式，包含以下字段：
 
 请求体使用JSON格式，包含以下字段：
 
-| 参数名 | 类型 | 必填 | 描述 |
-| --- | --- | --- | --- |
-| audio_files | Array[String] | 是 | 待处理的音频文件绝对路径列表。 |
-| collection_name | String | 是 | 用于比对的目标Milvus集合名称。 |
+| 参数名          | 类型          | 必填 | 描述                           |
+| --------------- | ------------- | ---- | ------------------------------ |
+| audio_files     | Array[String] | 是   | 待处理的音频文件绝对路径列表。 |
+| collection_name | String        | 是   | 用于比对的目标Milvus集合名称。 |
 
 请求体示例：
 ```json
@@ -935,43 +937,43 @@ API响应使用JSON格式，包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| retcode | Integer | 响应码，`200000`表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Object | 响应数据，包含比对和入库的详细信息，失败时为 `null` |
+| 字段名  | 类型    | 说明                                                |
+| ------- | ------- | --------------------------------------------------- |
+| retcode | Integer | 响应码，`200000`表示成功                            |
+| msg     | String  | 响应消息，描述请求处理结果                          |
+| data    | Object  | 响应数据，包含比对和入库的详细信息，失败时为 `null` |
 
 `data` 对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| collection_name | String | 参与比较的目标说话人声纹库，与输入参数一致。 |
-| comparison_results | Array[Object] | 每个切分音频片段的比对结果列表。 |
-| cluster_results | Array[Object] | 所有分割音频的聚类结果，包含2D坐标和聚类编号。 |
+| 字段名             | 类型          | 说明                                           |
+| ------------------ | ------------- | ---------------------------------------------- |
+| collection_name    | String        | 参与比较的目标说话人声纹库，与输入参数一致。   |
+| comparison_results | Array[Object] | 每个切分音频片段的比对结果列表。               |
+| cluster_results    | Array[Object] | 所有分割音频的聚类结果，包含2D坐标和聚类编号。 |
 
 `comparison_results` 数组中的每个对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| origin_audio_file | String | 原始输入音频文件名（不含路径）。|
-| segment_audio_file | String | 切分后的音频片段文件名（不含路径）。 |
-| calling_called | String | 该片段是主叫还是被叫，值为"calling" 或 "called"。 |
-| cluster_id | Integer | 该音频片段所属的聚类ID。|
-| top_match_speaker | String | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown_person'。 |
-| top_match_similarity | Float | 该片段与库中最相似说话人的余弦相似度。取值范围为[-1, 1]，当两个声纹完全一致时，值为 1，-1表示两段音频的说话人非常不相似，甚至特征方向完全相反。 |
-| compare_result | Array[Object] | 该片段与库中所有说话人的相似度列表。 |
+| 字段名               | 类型          | 说明                                                                                                                                            |
+| -------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| origin_audio_file    | String        | 原始输入音频文件名（不含路径）。                                                                                                                |
+| segment_audio_file   | String        | 切分后的音频片段文件名（不含路径）。                                                                                                            |
+| calling_called       | String        | 该片段是主叫还是被叫，值为"calling" 或 "called"。                                                                                               |
+| cluster_id           | Integer       | 该音频片段所属的聚类ID。                                                                                                                        |
+| top_match_speaker    | String        | 识别出的说话人ID。如果未匹配到任何已有说话人，则为 'unknown_person'。                                                                           |
+| top_match_similarity | Float         | 该片段与库中最相似说话人的余弦相似度。取值范围为[-1, 1]，当两个声纹完全一致时，值为 1，-1表示两段音频的说话人非常不相似，甚至特征方向完全相反。 |
+| compare_result       | Array[Object] | 该片段与库中所有说话人的相似度列表。                                                                                                            |
 
 `compare_result` 数组中的每个对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| person_id | String | 被比较的说话人ID。 |
-| similarity | Float | 该片段与该说话人的余弦相似度。 |
+| 字段名     | 类型   | 说明                           |
+| ---------- | ------ | ------------------------------ |
+| person_id  | String | 被比较的说话人ID。             |
+| similarity | Float  | 该片段与该说话人的余弦相似度。 |
 
 `cluster_results` 数组中的每个对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| --- | --- | --- |
-| segment_audio_file | String | 切分后的音频文件名。 |
-| x_coordinate | Float | t-SNE降维后的X坐标。 |
-| y_coordinate | Float | t-SNE降维后的Y坐标。 |
-| cluster_id | Integer | 聚类编号。 |
+| 字段名             | 类型    | 说明                 |
+| ------------------ | ------- | -------------------- |
+| segment_audio_file | String  | 切分后的音频文件名。 |
+| x_coordinate       | Float   | t-SNE降维后的X坐标。 |
+| y_coordinate       | Float   | t-SNE降维后的Y坐标。 |
+| cluster_id         | Integer | 聚类编号。           |
 
 成功响应示例：
 ```json
@@ -1168,23 +1170,32 @@ API响应使用JSON格式，包含以下字段：
 #### 请求参数
 
 请求体使用JSON格式，包含以下字段：
-| 参数名 | 类型 | 必填 | 说明 |
-| ------ | ---- | ---- | ---- |
-| files  | Array[String] | 是 | 音频文件的路径列表，每个路径必须指向一个有效的音频文件 |
-| use_gpu | Boolean | 否 | 是否使用GPU进行处理，默认为false |
-| gpu | Integer | 否 | 指定使用的GPU编号，仅在use_gpu为true时有效 |
-| language | String | 否 | 指定音频语言，可选值包括"en"(英语)、"zh"(中文)等，用于提高识别准确度 |
+| 参数名 | 类型          | 必填 | 说明                                                                      |
+| ------ | ------------- | ---- | ------------------------------------------------------------------------- |
+| files  | Array[Object] | 是   | 语音识别文件列表（本地相对路径或可直接访问的URL，可选携带分割元数据路径） |
+
+files对象包含以下字段：
+| 参数名        | 类型   | 必填 | 说明                                                                                    |
+| ------------- | ------ | ---- | --------------------------------------------------------------------------------------- |
+| id            | String | 是   | 文件唯一标识                                                                            |
+| file_path     | String | 是   | 音频路径；支持容器内相对输入目录的本地路径，或可下载的HTTP/HTTPS URL                    |
+| seg_file_path | String | 否   | 说话人分割元数据文件路径（JSON），相对输入目录；为空则返回纯Whisper结果，不按说话人合并 |
 
 请求体示例：（注意，docker中并不包含测试用音频文件，建议先构建OBS桶，将音频文件上传到OBS桶中，使用OBS桶的URL进行测试。或者，先开发语音保存/生成模块）
 ```json
 {
   "files": [
-    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en1.wav",
-    "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en2.wav"
-  ],
-  "use_gpu": true,
-  "gpu": 0,
-  "language": "en"
+    {
+      "id": "audio-001",
+      "file_path": "https://flea-market-obs.obs.ap-southeast-1.myhuaweicloud.com/audio/en1.wav",
+      "seg_file_path": ""  
+    },
+    {
+      "id": "audio-002",
+      "file_path": "./data/input/audio/en2.wav",
+      "seg_file_path": "./data/input/segmentation/en2.json"
+    }
+  ]
 }
 ```
 
@@ -1192,32 +1203,32 @@ API响应使用JSON格式，包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| retcode | Integer | 响应码，200000表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Object | 响应数据，包含识别结果，失败时可能为null |
+| 字段名  | 类型    | 说明                                     |
+| ------- | ------- | ---------------------------------------- |
+| retcode | Integer | 响应码，200000表示成功                   |
+| msg     | String  | 响应消息，描述请求处理结果               |
+| data    | Object  | 响应数据，包含识别结果，失败时可能为null |
 
 data对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| calling_party_number | String | 主叫方电话号码 |
-| called_party_number | String | 被叫方电话号码 |
-| keywords | Array[String] | 通话中检测到的关键词列表 |
-| labels | Array[String] | 通话内容的标签分类 |
-| call_original | String | 通话原始内容文本 |
-| call_translation | String | 通话内容的翻译文本（如适用） |
-| files | Array[Object] | 相关通话文件信息列表 |
+| 字段名               | 类型          | 说明                         |
+| -------------------- | ------------- | ---------------------------- |
+| calling_party_number | String        | 主叫方电话号码               |
+| called_party_number  | String        | 被叫方电话号码               |
+| keywords             | Array[String] | 通话中检测到的关键词列表     |
+| labels               | Array[String] | 通话内容的标签分类           |
+| call_original        | String        | 通话原始内容文本             |
+| call_translation     | String        | 通话内容的翻译文本（如适用） |
+| files                | Array[Object] | 相关通话文件信息列表         |
 
 files对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| file_id | String | 生成的文件唯一标识（UUID格式） |
-| phone_number | String | 文件关联的电话号码 |
-| identity | String | 通话方身份信息 |
-| call_record | String | 通话记录信息 |
-| create_time | String | 文件创建时间 |
-| file_url | String | 文件访问路径 |
+| 字段名       | 类型   | 说明                           |
+| ------------ | ------ | ------------------------------ |
+| file_id      | String | 生成的文件唯一标识（UUID格式） |
+| phone_number | String | 文件关联的电话号码             |
+| identity     | String | 通话方身份信息                 |
+| call_record  | String | 通话记录信息                   |
+| create_time  | String | 文件创建时间                   |
+| file_url     | String | 文件访问路径                   |
 
 成功响应示例：
 ```json
@@ -1297,19 +1308,19 @@ files对象包含以下字段：
 
 请求体使用JSON格式，包含以下字段：
 
-| 参数名 | 类型 | 必填 | 描述 |
-| ------ | ---- | ---- | ---- |
-| text | String | 是 | 待抽取的文本内容（支持中英文）。 |
-| entity_types | Array[String] | 否 | 自定义的实体类型列表。如果未提供，将使用默认的40种军事领域实体类型。 |
-| model_info | Object | 是 | 指定用于抽取的大模型信息。 |
+| 参数名       | 类型          | 必填 | 描述                                                                 |
+| ------------ | ------------- | ---- | -------------------------------------------------------------------- |
+| text         | String        | 是   | 待抽取的文本内容（支持中英文）。                                     |
+| entity_types | Array[String] | 否   | 自定义的实体类型列表。如果未提供，将使用默认的40种军事领域实体类型。 |
+| model_info   | Object        | 是   | 指定用于抽取的大模型信息。                                           |
 
 `model_info` 对象包含以下字段：
-| 参数名 | 类型 | 必填 | 描述 |
-| ------ | ---- | ---- | ---- |
-| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'`、`'ollama_api'` 或 `'vllm'` 之一。 |
-| model_name | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM中部署的模型名称，例如 `"deepseek-r1:7b"` 或 `"qwen1.5-7b-chat"`。 |
-| api_address | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM API服务地址，例如 `"http://localhost:11434/api/generate"` 或 `"http://localhost:8000/v1/chat/completions"`。 |
-| model_dir | String | `local_hf` 模式下是 | 本地Hugging Face格式模型所在的目录路径。 |
+| 参数名          | 类型   | 必填                            | 描述                                                                                                                      |
+| --------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| model_call_type | String | 是                              | 模型调用方式，必须为 `'local_hf'`、`'ollama_api'` 或 `'vllm'` 之一。                                                      |
+| model_name      | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM中部署的模型名称，例如 `"deepseek-r1:7b"` 或 `"qwen1.5-7b-chat"`。                                            |
+| api_address     | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM API服务地址，例如 `"http://localhost:11434/api/generate"` 或 `"http://localhost:8000/v1/chat/completions"`。 |
+| model_dir       | String | `local_hf` 模式下是             | 本地Hugging Face格式模型所在的目录路径。                                                                                  |
 
 请求体示例（使用Ollama API）：
 ```json
@@ -1352,17 +1363,17 @@ files对象包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| retcode | Integer | 响应码，`200000`表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Array[Object] | 响应数据，包含一个或多个实体对象的列表。如果未找到任何实体，则为空列表 `[]`。 |
+| 字段名  | 类型          | 说明                                                                          |
+| ------- | ------------- | ----------------------------------------------------------------------------- |
+| retcode | Integer       | 响应码，`200000`表示成功                                                      |
+| msg     | String        | 响应消息，描述请求处理结果                                                    |
+| data    | Array[Object] | 响应数据，包含一个或多个实体对象的列表。如果未找到任何实体，则为空列表 `[]`。 |
 
 `data` 数组中的每个对象包含以下字段：
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| type | String | 抽取的实体类型。 |
-| name | String | 抽取的实体名称（值）。 |
+| 字段名 | 类型   | 说明                   |
+| ------ | ------ | ---------------------- |
+| type   | String | 抽取的实体类型。       |
+| name   | String | 抽取的实体名称（值）。 |
 
 成功响应示例：
 ```json
@@ -1401,26 +1412,26 @@ API响应使用JSON格式，包含以下字段：
 
 请求体使用JSON格式，包含以下字段：
 
-| 参数名 | 类型 | 必填 | 描述 |
-| ------ | ---- | ---- | ---- |
-| text | String | 是 | 待抽取的文本内容（支持中英文）。 |
-| events_info | Array[Object] | 是 | 包含一个或多个事件信息的列表。每个对象包含 `event_type` 和可选的 `argument_types`。 |
-| model_info | Object | 是 | 指定用于抽取的大模型信息。 |
+| 参数名      | 类型          | 必填 | 描述                                                                                |
+| ----------- | ------------- | ---- | ----------------------------------------------------------------------------------- |
+| text        | String        | 是   | 待抽取的文本内容（支持中英文）。                                                    |
+| events_info | Array[Object] | 是   | 包含一个或多个事件信息的列表。每个对象包含 `event_type` 和可选的 `argument_types`。 |
+| model_info  | Object        | 是   | 指定用于抽取的大模型信息。                                                          |
 
 `events_info` 中每个对象的结构：
 
-| 参数名 | 类型 | 必填 | 描述 |
-| ------ | ---- | ---- | ---- |
-| event_type | String | 是 | 指定的目标事件类型（例如 "财经"）。 |
-| argument_types | Array[String] | 否 | 自定义的论元类型列表。如果未提供，将使用默认论元：['主体', '客体', '时间', '地点', '时态']。 |
+| 参数名         | 类型          | 必填 | 描述                                                                                         |
+| -------------- | ------------- | ---- | -------------------------------------------------------------------------------------------- |
+| event_type     | String        | 是   | 指定的目标事件类型（例如 "财经"）。                                                          |
+| argument_types | Array[String] | 否   | 自定义的论元类型列表。如果未提供，将使用默认论元：['主体', '客体', '时间', '地点', '时态']。 |
 
 `model_info` 对象包含以下字段：
-| 参数名 | 类型 | 必填 | 描述 |
-| ------ | ---- | ---- | ---- |
-| model_call_type | String | 是 | 模型调用方式，必须为 `'local_hf'`、`'ollama_api'` 或 `'vllm'` 之一。 |
-| model_name | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM中部署的模型名称，例如 `"deepseek-r1:7b"` 或 `"qwen1.5-7b-chat"`。 |
-| api_address | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM API服务地址，例如 `"http://localhost:11434/api/generate"` 或 `"http://localhost:8000/v1/chat/completions"`。 |
-| model_dir | String | `local_hf` 模式下是 | 本地Hugging Face格式模型所在的目录路径。 |
+| 参数名          | 类型   | 必填                            | 描述                                                                                                                      |
+| --------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| model_call_type | String | 是                              | 模型调用方式，必须为 `'local_hf'`、`'ollama_api'` 或 `'vllm'` 之一。                                                      |
+| model_name      | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM中部署的模型名称，例如 `"deepseek-r1:7b"` 或 `"qwen1.5-7b-chat"`。                                            |
+| api_address     | String | `ollama_api` 或 `vllm` 模式下是 | Ollama或vLLM API服务地址，例如 `"http://localhost:11434/api/generate"` 或 `"http://localhost:8000/v1/chat/completions"`。 |
+| model_dir       | String | `local_hf` 模式下是             | 本地Hugging Face格式模型所在的目录路径。                                                                                  |
 
 请求体示例（通过ollama api调用）：
 ```json
@@ -1473,27 +1484,27 @@ API响应使用JSON格式，包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| retcode | Integer | 响应码，200000表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Object | 响应数据，包含处理结果。 |
+| 字段名  | 类型    | 说明                       |
+| ------- | ------- | -------------------------- |
+| retcode | Integer | 响应码，200000表示成功     |
+| msg     | String  | 响应消息，描述请求处理结果 |
+| data    | Object  | 响应数据，包含处理结果。   |
 
 `data` 对象的结构：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| text | String | 请求中传入的原始文本。 |
+| 字段名 | 类型          | 说明                         |
+| ------ | ------------- | ---------------------------- |
+| text   | String        | 请求中传入的原始文本。       |
 | events | Array[Object] | 包含每个事件抽取结果的列表。 |
 
 `events` 列表中每个对象的结构：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| event_type | String | 事件类型。 |
-| argument_types | Array[String] | 本次抽取使用的论元类型列表。 |
-| trigger | String | 抽取的事件触发词。 |
-| arguments | Array[Object] | 抽取的论元列表，每个论元是一个包含 `name` 和 `value` 的对象。 |
+| 字段名         | 类型          | 说明                                                          |
+| -------------- | ------------- | ------------------------------------------------------------- |
+| event_type     | String        | 事件类型。                                                    |
+| argument_types | Array[String] | 本次抽取使用的论元类型列表。                                  |
+| trigger        | String        | 抽取的事件触发词。                                            |
+| arguments      | Array[Object] | 抽取的论元列表，每个论元是一个包含 `name` 和 `value` 的对象。 |
 
 成功响应示例：
 ```json
@@ -1542,9 +1553,9 @@ API响应使用JSON格式，包含以下字段：
 #### 请求参数
 
 请求体使用JSON格式，包含以下字段：
-| 参数名 | 类型 | 必填 | 说明 |
-| ------ | ---- | ---- | ---- |
-| text | Array[String] | 是 | 待检测的文本列表 |
+| 参数名 | 类型          | 必填 | 说明             |
+| ------ | ------------- | ---- | ---------------- |
+| text   | Array[String] | 是   | 待检测的文本列表 |
 
 请求体示例：
 ```json
@@ -1560,18 +1571,18 @@ API响应使用JSON格式，包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| retcode | Integer | 响应码，200000表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Array[Object] | 响应数据，包含语种检测结果列表 |
+| 字段名  | 类型          | 说明                           |
+| ------- | ------------- | ------------------------------ |
+| retcode | Integer       | 响应码，200000表示成功         |
+| msg     | String        | 响应消息，描述请求处理结果     |
+| data    | Array[Object] | 响应数据，包含语种检测结果列表 |
 
 **data 数组中的对象结构：**
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| language | String | 检测到的语言代码 |
-| language_name | String | 语言中文名称 |
-| confidence | String | 检测置信度（0-1之间的数值字符串） |
+| 字段名        | 类型   | 说明                              |
+| ------------- | ------ | --------------------------------- |
+| language      | String | 检测到的语言代码                  |
+| language_name | String | 语言中文名称                      |
+| confidence    | String | 检测置信度（0-1之间的数值字符串） |
 
 成功响应示例：
 ```json
@@ -1605,15 +1616,15 @@ API响应使用JSON格式，包含以下字段：
 #### 请求参数
 
 请求体使用JSON格式，包含以下字段：
-| 参数名 | 类型 | 必填 | 说明 |
-| ------ | ---- | ---- | ---- |
-| files | Array[Object] | 是 | 图像文件列表，每个文件对象包含文件信息 |
+| 参数名 | 类型          | 必填 | 说明                                   |
+| ------ | ------------- | ---- | -------------------------------------- |
+| files  | Array[Object] | 是   | 图像文件列表，每个文件对象包含文件信息 |
 
 **FileRequest 对象结构：**
-| 参数名 | 类型 | 必填 | 说明 |
-| ------ | ---- | ---- | ---- |
-| id | String | 是 | 文件唯一标识 |
-| file_path | String | 是 | 文件路径或URL |
+| 参数名    | 类型   | 必填 | 说明          |
+| --------- | ------ | ---- | ------------- |
+| id        | String | 是   | 文件唯一标识  |
+| file_path | String | 是   | 文件路径或URL |
 
 请求体示例：
 ```json
@@ -1631,39 +1642,39 @@ API响应使用JSON格式，包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| retcode | Integer | 响应码，200000表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Array[Object] | 响应数据，包含OCR识别结果列表 |
+| 字段名  | 类型          | 说明                          |
+| ------- | ------------- | ----------------------------- |
+| retcode | Integer       | 响应码，200000表示成功        |
+| msg     | String        | 响应消息，描述请求处理结果    |
+| data    | Array[Object] | 响应数据，包含OCR识别结果列表 |
 
 **data 数组中的对象结构：**
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| file_id | String | 文件唯一标识 |
-| file_path | String | 文件原始路径 |
-| ocr_path | String | OCR识别结果的JSON文件路径 |
+| 字段名    | 类型   | 说明                      |
+| --------- | ------ | ------------------------- |
+| file_id   | String | 文件唯一标识              |
+| file_path | String | 文件原始路径              |
+| ocr_path  | String | OCR识别结果的JSON文件路径 |
 
 **识别结果 JSON 文件中的对象结构：**
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| file_id | String | 文件唯一标识 |
-| file_path | String | 文件原始路径 |
+| 字段名      | 类型          | 说明                                           |
+| ----------- | ------------- | ---------------------------------------------- |
+| file_id     | String        | 文件唯一标识                                   |
+| file_path   | String        | 文件原始路径                                   |
 | ocr_results | Array[Object] | OCR识别结果，可以包含多个页面信息（如pdf文件） |
 
 **ocr_results 页面对象结构：**
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| page | String | 页码 |
-| content | Array[Object] | 文本框识别结果列表 |
-| total_text | String | 页面所有文本拼接后的完整内容 |
+| 字段名     | 类型          | 说明                         |
+| ---------- | ------------- | ---------------------------- |
+| page       | String        | 页码                         |
+| content    | Array[Object] | 文本框识别结果列表           |
+| total_text | String        | 页面所有文本拼接后的完整内容 |
 
 **content 文本框对象结构：**
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| label | String | 识别出的内容类别标签 |
-| text | String | 识别出的文字内容 |
-| box | Array[Float] | 文本框矩形边界坐标 |
+| 字段名 | 类型         | 说明                 |
+| ------ | ------------ | -------------------- |
+| label  | String       | 识别出的内容类别标签 |
+| text   | String       | 识别出的文字内容     |
+| box    | Array[Float] | 文本框矩形边界坐标   |
 
 成功响应示例：
 ```json
@@ -1692,12 +1703,12 @@ API响应使用JSON格式，包含以下字段：
 #### 请求参数
 
 请求体使用JSON格式，包含以下字段：
-| 参数名 | 类型 | 必填 | 说明 |
-| ------ | ---- | ---- | ---- |
-| text | Array[String] | 是 | 待翻译文本列表 |
-| source_lang | String | 是 | 源语言代码，如 'en'(英文)、'zh'(中文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文) |
-| target_lang | String | 是 | 目标语言代码，如 'zh'(中文)、'en'(英文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文) |
-| model_type | String | 否 | 翻译模型选项，可选值包括 'm2m100'(默认)、'small100' |
+| 参数名      | 类型          | 必填 | 说明                                                                        |
+| ----------- | ------------- | ---- | --------------------------------------------------------------------------- |
+| text        | Array[String] | 是   | 待翻译文本列表                                                              |
+| source_lang | String        | 是   | 源语言代码，如 'en'(英文)、'zh'(中文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文)   |
+| target_lang | String        | 是   | 目标语言代码，如 'zh'(中文)、'en'(英文)、'ru'(俄语)、'ja'(日文)、'mn'(蒙文) |
+| model_type  | String        | 否   | 翻译模型选项，可选值包括 'm2m100'(默认)、'small100'                         |
 
 请求体示例：
 ```json
@@ -1715,22 +1726,22 @@ API响应使用JSON格式，包含以下字段：
 
 API响应使用JSON格式，包含以下字段：
 
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| retcode | Integer | 响应码，200000表示成功 |
-| msg | String | 响应消息，描述请求处理结果 |
-| data | Array[Object] | 响应数据，包含翻译结果列表 |
+| 字段名  | 类型          | 说明                       |
+| ------- | ------------- | -------------------------- |
+| retcode | Integer       | 响应码，200000表示成功     |
+| msg     | String        | 响应消息，描述请求处理结果 |
+| data    | Array[Object] | 响应数据，包含翻译结果列表 |
 
 **data 数组中的对象结构：**
-| 字段名 | 类型 | 说明 |
-| ------ | ---- | ---- |
-| source_lang | String | 源语言代码 |
-| source_lang_name | String | 源语言中文名称 |
-| source_text | String | 原文内容 |
-| target_lang | String | 目标语言代码 |
-| target_lang_name | String | 目标语言中文名称 |
-| translated_text | String | 翻译结果全文 |
-| model_type | String | 使用的翻译模型标识 |
+| 字段名           | 类型   | 说明               |
+| ---------------- | ------ | ------------------ |
+| source_lang      | String | 源语言代码         |
+| source_lang_name | String | 源语言中文名称     |
+| source_text      | String | 原文内容           |
+| target_lang      | String | 目标语言代码       |
+| target_lang_name | String | 目标语言中文名称   |
+| translated_text  | String | 翻译结果全文       |
+| model_type       | String | 使用的翻译模型标识 |
 
 成功响应示例：
 ```json

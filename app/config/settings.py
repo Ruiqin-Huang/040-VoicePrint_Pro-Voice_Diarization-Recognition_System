@@ -90,9 +90,9 @@ class Settings(BaseSettings):
 
     # === GPU设置 ===
     USE_GPU: bool = True  # 是否使用GPU加速
-    GPU_ID: int = 2  # 默认GPU设备ID
+    GPU_ID: int = 0  # 默认GPU设备ID
 
-    OCR_GPU_ID: List[int] = [0, 1, 3]  # OCR服务可用的GPU设备ID列表
+    OCR_GPU_ID: List[int] = [1, 2]  # OCR服务可用的GPU设备ID列表
 
     # === Milvus向量数据库配置 ===
     MILVUS_HOST: str = "10.108.17.241"  # Milvus服务器主机地址
@@ -144,7 +144,7 @@ embedding_model:
     ENTITY_EXTRACTION_MAX_RETRIES: int = 2  # 最大重试次数，处理临时失败
 
     # === PaddleOCR环境配置 ===
-    PADDLEOCR_PYTHON_EXEC: str = "~/.conda/envs/paddleocr/bin/python"  # PaddleOCR专用Python环境路径
+    PADDLEOCR_PYTHON_EXEC: str = "/opt/conda/envs/paddleocr/bin/python"  # PaddleOCR专用Python环境路径
 
     class Config:
         """

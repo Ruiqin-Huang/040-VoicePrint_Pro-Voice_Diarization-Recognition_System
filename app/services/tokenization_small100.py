@@ -1,21 +1,3 @@
-# Copyright (c) 2022 Idiap Research Institute, http://www.idiap.ch/
-# Written by Alireza Mohammadshahi <alireza.mohammadshahi@idiap.ch>
-# This is a modified version of https://github.com/huggingface/transformers/blob/main/src/transformers/models/m2m_100/tokenization_m2m_100.py 
-# which owns by Fariseq Authors and The HuggingFace Inc. team.
-#
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Tokenization classes for SMALL100."""
 import json
 import os
 from pathlib import Path
