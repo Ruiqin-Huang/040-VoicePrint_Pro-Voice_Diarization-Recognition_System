@@ -244,8 +244,8 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, file_d
     
     # 复制原始音频到输出目录
     original_filename = os.path.basename(wav_path)
-    original_copy_path = os.path.join(save_dir, original_filename)
-    shutil.copy2(wav_path, original_copy_path)  # 保留元数据
+    # original_copy_path = os.path.join(save_dir, original_filename)
+    # shutil.copy2(wav_path, original_copy_path)  # 保留元数据
 
     # 按照真实出现顺序编号说话人（原始输出不一定编号连续）
     speakers = {}
@@ -300,10 +300,10 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, file_d
             "file_path": output_filepath
         })
 
-    # 保存元数据到JSON文件
-    base_name, ext = os.path.splitext(original_filename)
-    with open(os.path.join(save_dir, f"{base_name}.json"), 'w') as f:
-        json.dump(metadata, f, indent=2, ensure_ascii=False)
+    # # 保存元数据到JSON文件
+    # base_name, ext = os.path.splitext(original_filename)
+    # with open(os.path.join(save_dir, f"{base_name}.json"), 'w') as f:
+    #     json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     return metadata
 
@@ -418,7 +418,8 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                 results.append({
                     "file_id": file_id,
                     "file_type": "未知，该文件不存在",
-                    "segment_files": []
+                    "segment_files": [],
+                    "metadata": None
                 })
                 continue
             
@@ -442,7 +443,8 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                     results.append({
                         "file_id": file_id,
                         "file_type": "未知，该条音频过短或未检测到人声",
-                        "segment_files": []
+                        "segment_files": [],
+                        "metadata": None
                     })
                     continue
                 else:
@@ -482,7 +484,8 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                 results.append({
                     "file_id": file_id,
                     "file_type": "未知，该条音频过短或未检测到人声",
-                    "segment_files": []
+                    "segment_files": [],
+                    "metadata": None
                 })
                 continue
             elif actual_speakers == 1:
@@ -493,53 +496,57 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
                 segment_files = await extract_speaker_audio(local_path, result['text'], os.path.join(output_dir, base_name), actual_speakers)
             elif actual_speakers >= 2:
                 # 检测到两个及以上说话人
+
+                try:
+                    with suppress_stdout_stderr():
+                        result = sd_pipeline(processing_path, oracle_num=2)
+                except Exception as e:
+                    print(f"Error processing {file_path} with oracle_num=2: {str(e)}")
+                    invalid_files.append(f"{file_path}: oracle_num=2处理失败: {str(e)}")
+                    results.append({
+                        "file_id": file_id,
+                        "file_type": "未知，该条音频过短或未检测到人声",
+                        "segment_files": [],
+                        "metadata": None
+                    })
+                    continue
+                
+                # 如果音频被扩展过，需要过滤掉超出原始音频长度的切分结果
+                if needs_cleanup:
+                    filtered_segments = []
+                    for seg_start, seg_end, spk_id in result['text']:
+                        if seg_start < original_duration:
+                            # 限制结束时间不超过原始音频长度
+                            seg_end = min(seg_end, original_duration)
+                            if seg_end > seg_start:  # 确保还有有效时长
+                                filtered_segments.append((seg_start, seg_end, spk_id))
+                    result['text'] = filtered_segments
+                
+                # 提取说话人分割元数据
+                metadata = await extract_and_save_speaker_segments(local_path, result['text'], os.path.join(output_dir, base_name))
+
                 if is_jy_file:
                     # JY文件：使用左右声道切分
                     file_type = "双人"
-                    # 复制原始音频到输出目录
-                    save_dir = os.path.join(settings.OUTPUT_DIR, os.path.join(output_dir, base_name))
-                    os.makedirs(save_dir, exist_ok=True)
-                    original_copy_path = os.path.join(save_dir, file_name)
-                    shutil.copy2(local_path, original_copy_path)
+                    # # 复制原始音频到输出目录
+                    # save_dir = os.path.join(settings.OUTPUT_DIR, os.path.join(output_dir, base_name))
+                    # os.makedirs(save_dir, exist_ok=True)
+                    # original_copy_path = os.path.join(save_dir, file_name)
+                    # shutil.copy2(local_path, original_copy_path)
                     # 提取左右声道音频
                     segment_files = await extract_speaker_audio_from_channels(local_path, os.path.join(output_dir, base_name))
                 else:
                     # 非JY文件：使用oracle_num=2重新执行sd_pipeline
                     file_type = "双人"
-                    try:
-                        with suppress_stdout_stderr():
-                            result = sd_pipeline(processing_path, oracle_num=2)
-                        
-                        # 如果音频被扩展过，需要过滤掉超出原始音频长度的切分结果
-                        if needs_cleanup:
-                            filtered_segments = []
-                            for seg_start, seg_end, spk_id in result['text']:
-                                if seg_start < original_duration:
-                                    # 限制结束时间不超过原始音频长度
-                                    seg_end = min(seg_end, original_duration)
-                                    if seg_end > seg_start:  # 确保还有有效时长
-                                        filtered_segments.append((seg_start, seg_end, spk_id))
-                            result['text'] = filtered_segments
-                        
-                        # 提取说话人分割元数据
-                        metadata = await extract_and_save_speaker_segments(local_path, result['text'], os.path.join(output_dir, base_name))
-                        # 提取说话人音频片段（固定为2个说话人）
-                        segment_files = await extract_speaker_audio(local_path, result['text'], os.path.join(output_dir, base_name), 2)
-                    except Exception as e:
-                        print(f"Error processing {file_path} with oracle_num=2: {str(e)}")
-                        invalid_files.append(f"{file_path}: oracle_num=2处理失败: {str(e)}")
-                        results.append({
-                            "file_id": file_id,
-                            "file_type": "未知，该条音频过短或未检测到人声",
-                            "segment_files": []
-                        })
-                        continue
+                    # 提取说话人音频片段（固定为2个说话人）
+                    segment_files = await extract_speaker_audio(local_path, result['text'], os.path.join(output_dir, base_name), 2)
             
             # 添加到结果列表
             results.append({
                 "file_id": file_id,
                 "file_type": file_type,
-                "segment_files": segment_files
+                "segment_files": segment_files,
+                "metadata": metadata
             })
                 
         except Exception as e:
@@ -548,7 +555,8 @@ async def process_audio_files(file_requests: List[FileRequest]) -> List[Dict]:
             results.append({
                 "file_id": file_id,
                 "file_type": "未知，该条音频过短或未检测到人声",
-                "segment_files": []
+                "segment_files": [],
+                "metadata": None
             })
     
     # 清理临时文件

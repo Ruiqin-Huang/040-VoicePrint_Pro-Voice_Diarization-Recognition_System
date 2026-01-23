@@ -28,7 +28,7 @@ from tqdm import tqdm  # 添加tqdm导入
 from urllib.parse import urlparse
 from typing import Any, List, Dict
 
-from app.models.speech_segmentation import FileRequest
+from app.models.speech_recognition import RecognitionFileRequest
 from app.config.path_mapper import PathMapper
 from app.config.settings import settings
 from utils.helpers import format_datetime, generate_phone_number
@@ -175,11 +175,20 @@ def merge_by_speaker_segments(whisper_results: List[Dict], speaker_segments: Dic
             if whisper_seg["start"] >= speaker_seg["end_time"]:
                 break
 
+            # 避免VAD误差导致的错误向前合并：
+            # 如果whisper片段在speaker片段内的部分占比过小，归到下一个speaker片段
+            overlap_duration = speaker_seg["end_time"] - whisper_seg["start"]
+            whisper_duration = whisper_seg["end"] - whisper_seg["start"]
+            if whisper_duration > 0 and (overlap_duration / whisper_duration) < 0.3:
+                break  # 不增加whisper_idx，留给下一个speaker处理
+
             # 记录匹配的片段，合并文本
             if current_speaker["text"]:
                 current_speaker["text"] += " " + whisper_seg["text"].strip()
+                current_speaker["end_time"] = whisper_seg["end"]  # 更新结束时间为最后一个匹配片段的结束时间
             else:
                 current_speaker["text"] = whisper_seg["text"].strip()
+                current_speaker["start_time"] = whisper_seg["start"]  # 更新开始时间为第一个匹配片段的开始时间
             # 更新无语音概率为最新值
             current_speaker["no_speech_prob"] = whisper_seg["no_speech_prob"]
             whisper_idx += 1
@@ -188,7 +197,7 @@ def merge_by_speaker_segments(whisper_results: List[Dict], speaker_segments: Dic
 
     return merged_results
 
-def save_segments_to_file(results: List[Dict], seg_metadata: str, file_name: str):
+def save_segments_to_file(results: List[Dict], seg_metadata: str, file_path: str):
     """
     将转录分段结果保存为JSON文件
 
@@ -204,29 +213,47 @@ def save_segments_to_file(results: List[Dict], seg_metadata: str, file_name: str
     output_dir = os.path.join(settings.OUTPUT_DIR, settings.RECOGNITION_OUTPUT_DIR)
     os.makedirs(output_dir, exist_ok=True)
 
-    # 读取说话人分离元数据
-    with open(seg_metadata) as f:
-        speaker_segments = json.load(f)
-
     # 构建识别结果字典
     recognitions = {}
-    recognitions["audio_source"] = speaker_segments["audio_source"]
-    recognitions["recognition"] = merge_by_speaker_segments(results, speaker_segments)
 
-    # 生成JSON文件名和路径
-    json_filename = f"{file_name}.json"
-    json_path = os.path.join(output_dir, json_filename)
+    if seg_metadata:
+        # 读取说话人分离元数据
+        with open(seg_metadata) as f:
+            speaker_segments = json.load(f)
+        
+        # recognitions["audio_source"] = speaker_segments["audio_source"]
+        recognitions["recognition"] = merge_by_speaker_segments(results["segments"], speaker_segments)
+    else:
+        start_time = results["segments"][0]["start"] if results["segments"] else 0
+        end_time = results["segments"][-1]["end"] if results["segments"] else 0
+        recognitions["recognition"] = [
+            {
+                "seg_id": str(uuid.uuid4()),
+                "speaker": "unknown",
+                "identity": "未知",
+                "start_time": start_time,
+                "end_time": end_time,
+                "duration": end_time - start_time,
+                "file_path": file_path,
+                "text": results["full_text"],
+                "no_speech_prob": results["segments"][0]["no_speech_prob"] if results["segments"] else 0
+            }
+        ]
+
+    # # 生成JSON文件名和路径
+    # json_filename = f"{file_name}.json"
+    # json_path = os.path.join(output_dir, json_filename)
 
     # 确保输出目录存在
     os.makedirs(output_dir, exist_ok=True)
 
-    # 保存为JSON文件
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(recognitions, f, ensure_ascii=False, indent=2)
+    # # 保存为JSON文件
+    # with open(json_path, "w", encoding="utf-8") as f:
+    #     json.dump(recognitions, f, ensure_ascii=False, indent=2)
 
-    return str(json_path), recognitions["recognition"]
+    return recognitions["recognition"]
 
-async def process_speech_files(file_requests: List[FileRequest]) -> tuple:
+async def process_speech_files(file_requests: List[RecognitionFileRequest]) -> tuple:
     """
     批量处理语音识别文件
 
@@ -249,6 +276,7 @@ async def process_speech_files(file_requests: List[FileRequest]) -> tuple:
     for file_request in tqdm(file_requests, desc="Processing audio files"):
         file_id = file_request.id
         file_path = file_request.file_path
+        seg_file_path = file_request.seg_file_path
         try:
             # 转换为容器内路径
             # local_path = path_mapper.host_to_container(file_path)
@@ -265,17 +293,20 @@ async def process_speech_files(file_requests: List[FileRequest]) -> tuple:
                 continue
 
             # 检查对应的说话人分离结果是否存在
-            base_name, ext = os.path.splitext(os.path.basename(local_path))
-            seg_metadata = os.path.join(settings.OUTPUT_DIR, settings.SEGMENTATION_OUTPUT_DIR, base_name, (base_name + '.json'))
-            if not os.path.exists(seg_metadata):
-                invalid_files.append(f"语音切分结果不存在：{file_path}")
-                continue  # 确保有continue语句
-
+            # base_name, ext = os.path.splitext(os.path.basename(local_path))
+            # seg_metadata = os.path.join(settings.OUTPUT_DIR, settings.SEGMENTATION_OUTPUT_DIR, base_name, (base_name + '.json'))
+            # if not os.path.exists(seg_metadata):
+            #     invalid_files.append(f"语音切分结果不存在：{file_path}")
+            #     continue  # 确保有continue语句
+            seg_metadata = None
+            if seg_file_path:
+                seg_metadata = os.path.join(settings.INPUT_DIR, seg_file_path)
+                
             # 执行语音识别转录
             result = transcribe_audio_file(whisper_model, local_path)
 
             # 保存结果并合并说话人信息
-            local_data_path, recognitions = save_segments_to_file(result["segments"], seg_metadata, base_name)
+            recognitions = save_segments_to_file(result, seg_metadata, file_path)
             # file_url = path_mapper.container_to_host(local_data_path)
 
             # 添加到成功处理列表

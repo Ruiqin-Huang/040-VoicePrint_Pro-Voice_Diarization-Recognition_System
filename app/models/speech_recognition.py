@@ -18,7 +18,7 @@
 from typing import List, Optional
 from pydantic import BaseModel, validator
 
-from app.models.file_request import FileRequest
+from app.models.recognition_file_request import RecognitionFileRequest
 
 # 请求模型
 class SpeechRecognitionRequest(BaseModel):
@@ -28,7 +28,7 @@ class SpeechRecognitionRequest(BaseModel):
     Attributes:
         files: 要进行语音识别的文件列表
     """
-    files: List[FileRequest]
+    files: List[RecognitionFileRequest]
 
     @validator('files')
     def files_must_not_be_empty(cls, v):
