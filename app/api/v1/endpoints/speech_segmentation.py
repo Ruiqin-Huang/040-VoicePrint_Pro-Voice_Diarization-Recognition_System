@@ -75,7 +75,8 @@ async def speech_segmentation(request: SpeechSegmentationRequest):
                 FileResult(
                     file_id=result["file_id"],
                     file_type=result["file_type"],
-                    segment_files=segment_files
+                    segment_files=segment_files,
+                    metadata=result["metadata"]
                 )
             )
         

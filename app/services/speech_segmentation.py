@@ -300,12 +300,13 @@ async def extract_and_save_speaker_segments(wav_path: str, results: List, file_d
             "file_path": output_filepath
         })
 
-    # # 保存元数据到JSON文件
-    # base_name, ext = os.path.splitext(original_filename)
-    # with open(os.path.join(save_dir, f"{base_name}.json"), 'w') as f:
-    #     json.dump(metadata, f, indent=2, ensure_ascii=False)
+    # 保存元数据到JSON文件
+    base_name, ext = os.path.splitext(original_filename)
+    metadata_path = os.path.join(save_dir, f"{base_name}.json")
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
 
-    return metadata
+    return metadata_path
 
 async def is_url(path: str) -> bool:
     """

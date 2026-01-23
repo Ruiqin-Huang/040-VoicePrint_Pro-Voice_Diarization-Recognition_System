@@ -73,7 +73,9 @@ class FileResult(BaseModel):
         file_id: 原始文件的唯一标识符
         file_type: 文件类型，如"单人"、"双人"、"多人"等
         segment_files: 分割后的文件列表
+        metadata: 分割结果元数据路径
     """
     file_id: str
     file_type: str  # "单人"、"双人"、"多人"等
     segment_files: List[SegmentFile]
+    metadata: str
