@@ -183,6 +183,8 @@ async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num
     speakers = {}
 
     # 遍历所有说话人的语音段落
+    margin = 0.2 # 边缘收缩 200ms 防止串音
+
     for seg in results:
         start_time, end_time, speaker_id = seg
 
@@ -191,6 +193,12 @@ async def extract_speaker_audio(wav_path: str, results: List, file_dir: str, num
             speakers[speaker_id] = len(speakers)
         real_speaker_id = speakers[speaker_id]
 
+        # 边缘收缩，防止串音
+        # 确保收缩后的时长仍然大于0
+        if (end_time - start_time) > (2 * margin):
+            start_time += margin
+            end_time -= margin
+        
         # 获取音频的起始和结束位置（采样点）
         start_sample = int(start_time * sr)
         end_sample = int(end_time * sr)
