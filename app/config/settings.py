@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     PADDLEOCR_CACHE_DIR: str = "./pretrained_models/paddleocr/"  # PaddleOCR模型缓存目录
     OCR_DETECTION_CACHE_DIR: str = "PP-OCRv5_server_det"  # OCR检测模型目录名
     OCR_RECOGNITION_CACHE_DIR: str = "PP-OCRv5_server_rec"  # OCR识别模型目录名
-    TRANSLATION_M2M100_CACHE_DIR: str = "./pretrained_models/m2m100"  # M2M100翻译模型缓存目录
+    TRANSLATION_M2M100_CACHE_DIR: str = "./pretrained_models/m2m100_1.2B"  # M2M100翻译模型缓存目录
     TRANSLATION_SMALL100_CACHE_DIR: str = "./pretrained_models/small100"  # Small100翻译模型缓存目录
     TRANSLATION_HY_MT15_CACHE_DIR: str = "./pretrained_models/HY-MT1___5-1___8B"  # Hunyuan MT1.5翻译模型缓存目录
 

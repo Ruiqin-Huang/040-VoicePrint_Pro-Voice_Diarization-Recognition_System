@@ -31,7 +31,7 @@ from app.config.settings import settings
 # 模型配置字典，定义不同模型的配置信息
 MODEL_CONFIG = {
     "m2m100": {
-        "model_name": "facebook/m2m100_418M",  # M2M100模型名称
+        "model_name": "facebook/m2m100_1.2B",  # M2M100模型名称
         "class": (M2M100ForConditionalGeneration, M2M100Tokenizer),  # M2M100模型和分词器类
         "model_dir": settings.TRANSLATION_M2M100_CACHE_DIR  # M2M100模型缓存目录
     },
