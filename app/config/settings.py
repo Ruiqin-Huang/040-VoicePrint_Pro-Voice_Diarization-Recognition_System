@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     OCR_RECOGNITION_CACHE_DIR: str = "PP-OCRv5_server_rec"  # OCR识别模型目录名
     TRANSLATION_M2M100_CACHE_DIR: str = "./pretrained_models/m2m100"  # M2M100翻译模型缓存目录
     TRANSLATION_SMALL100_CACHE_DIR: str = "./pretrained_models/small100"  # Small100翻译模型缓存目录
+    TRANSLATION_HY_MT15_CACHE_DIR: str = "./pretrained_models/HY-MT1___5-1___8B"  # Hunyuan MT1.5翻译模型缓存目录
 
     # === 输入输出目录配置 ===
     INPUT_DIR: str = "./data/input"  # 输入根目录

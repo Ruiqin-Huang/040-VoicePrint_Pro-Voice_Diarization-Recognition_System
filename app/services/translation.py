@@ -16,9 +16,12 @@
 - app.config.settings: 配置管理
 """
 
+import gc
 import os
 from typing import List, Dict, Any
+import torch
 from tqdm import tqdm
+from modelscope import AutoModelForCausalLM, AutoTokenizer
 from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
 from app.services.tokenization_small100 import SMALL100Tokenizer
 
@@ -36,6 +39,10 @@ MODEL_CONFIG = {
         "model_name": "alirezamsh/small100",  # Small100模型名称
         "class": (M2M100ForConditionalGeneration, SMALL100Tokenizer),  # 使用Small100自定义分词器
         "model_dir": settings.TRANSLATION_SMALL100_CACHE_DIR  # Small100模型缓存目录
+    },
+    "hy_mt1.5": {
+        "model_name": "Tencent-Hunyuan/HY-MT1.5-1.8B",  # HY-MT1.5模型名称
+        "model_dir": settings.TRANSLATION_HY_MT15_CACHE_DIR  # Hunyuan MT1.5模型缓存目录
     }
 }
 
@@ -49,14 +56,33 @@ STRONG_PUNCT = set("。！？.!?")
 # 弱标点（短语级）
 WEAK_PUNCT = set("，,；;：:、")
 
-def load_model(model_type: str = "m2m100"):
+def clear_models():
+    """
+    清除所有已加载的模型与 tokenizer，并释放 GPU 显存
+    """
+    for model, tokenizer in _MODELS.values():
+        del model
+        del tokenizer
+    
+    _MODELS.clear()
+
+    # 强制垃圾回收
+    gc.collect()
+
+    # 强制垃圾回收 + GPU 显存回收
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
+def load_model(model_type: str = "hy_mt1.5"):
     """
     加载指定类型的翻译模型和分词器
 
     使用缓存机制，如果模型已加载则直接返回，否则从本地加载。
 
     Args:
-        model_type: 模型类型，"m2m100" 或 "small100"
+        model_type: 模型类型，"m2m100" 或 "small100" 或 "hy_mt1.5"
 
     Returns:
         Tuple: (model, tokenizer) 已加载的模型和分词器
@@ -65,12 +91,22 @@ def load_model(model_type: str = "m2m100"):
         KeyError: 当model_type不在配置中时抛出
     """
     if model_type not in _MODELS:
+        # 清理其它模型
+        clear_models()
+
         # 获取模型配置
         config = MODEL_CONFIG[model_type]
-        # 从本地缓存目录加载模型
-        model = config["class"][0].from_pretrained(config["model_dir"], local_files_only=True)
-        # 加载分词器，清理tokenization空格
-        tokenizer = config["class"][1].from_pretrained(config["model_dir"], clean_up_tokenization_spaces=True, local_files_only=True)
+        if model_type in ["m2m100", "small100"]:
+            # 从本地缓存目录加载模型
+            model = config["class"][0].from_pretrained(config["model_dir"], local_files_only=True)
+            # 加载分词器，清理tokenization空格
+            tokenizer = config["class"][1].from_pretrained(config["model_dir"], clean_up_tokenization_spaces=True, local_files_only=True)
+        elif model_type == "hy_mt1.5":
+            model = AutoModelForCausalLM.from_pretrained(config["model_dir"], device_map=f"cuda:{settings.GPU_ID}")  # You may want to use bfloat16 and/or move to GPU here
+            tokenizer = AutoTokenizer.from_pretrained(config["model_dir"])
+        else:
+            raise KeyError(f"未知的模型类型: {model_type}")
+        
         # 缓存模型和分词器
         _MODELS[model_type] = (model, tokenizer)
     return _MODELS[model_type]
@@ -136,7 +172,7 @@ def translate_text(
     text: str,
     src_lang: str,
     tgt_lang: str,
-    model_type: str = "m2m100"
+    model_type: str = "hy_mt1.5"
 ) -> str:
     """
     执行单条文本翻译的核心函数
@@ -156,32 +192,48 @@ def translate_text(
     model, tokenizer = model_data
     # print(model_type, src_lang, tgt_lang, text)
 
-    # 设置源语言
-    tokenizer.src_lang = src_lang
+    if model_type == "hy_mt1.5":
+        # 混元MT1.5模型的翻译流程
+        messages = [
+            {"role": "user", "content": f"将以下文本翻译为{tgt_lang}，注意只需要输出翻译后的结果，不要额外解释：\n\n{text}"},
+        ]
+        tokenized_chat = tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=False,
+            return_tensors="pt"
+        )
 
-    if model_type == "m2m100":
-        # M2M100模型的翻译流程
-        inputs = tokenizer(text, return_tensors="pt")
-        outputs = model.generate(
-            **inputs,
-            forced_bos_token_id=tokenizer.get_lang_id(tgt_lang)  # 强制目标语言开头token
-        )
+        outputs = model.generate(tokenized_chat.to(model.device), max_new_tokens=2048)
+        output_text = tokenizer.decode(outputs[0])
     else:
-        # Small100模型的翻译流程
-        tokenizer.tgt_lang = tgt_lang
-        inputs = tokenizer(text, return_tensors="pt")
-        outputs = model.generate(
-            **inputs
-        )
+        # 设置源语言
+        tokenizer.src_lang = src_lang
+
+        if model_type == "m2m100":
+            # M2M100模型的翻译流程
+            inputs = tokenizer(text, return_tensors="pt")
+            outputs = model.generate(
+                **inputs,
+                forced_bos_token_id=tokenizer.get_lang_id(tgt_lang)  # 强制目标语言开头token
+            )
+        else:
+            # Small100模型的翻译流程
+            tokenizer.tgt_lang = tgt_lang
+            inputs = tokenizer(text, return_tensors="pt")
+            outputs = model.generate(
+                **inputs
+            )
+        output_text = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
 
     # 解码输出并返回翻译结果
-    return tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+    return output_text
 
 async def process_translation(
     file_requests: List[FileRequest],
     source_lang: str,
     target_lang: str,
-    model_type: str = "m2m100"
+    model_type: str = "hy_mt1.5"
 ) -> Dict[str, Any]:
     """
     批量处理文本翻译
@@ -205,14 +257,18 @@ async def process_translation(
     # 使用进度条显示翻译进度
     for text in tqdm(file_requests, desc="Translating text"):
         try:
-            # 文本切段
-            segments = _split_text(text)
-            translated_text = ""
+            if model_type == "hy_mt1.5":
+                # 混元MT1.5模型翻译
+                translated_text = translate_text(text, source_lang, target_lang, model_type)
+            else:
+                # 文本切段
+                segments = _split_text(text)
+                translated_text = ""
 
-            for segment in segments:
-                # 执行翻译
-                translated = translate_text(segment, source_lang, target_lang, model_type)
-                translated_text += translated
+                for segment in segments:
+                    # 执行翻译
+                    translated = translate_text(segment, source_lang, target_lang, model_type)
+                    translated_text += translated
 
             # 构建翻译结果
             processed_files.append({

@@ -25,12 +25,12 @@ class TranslationRequest(BaseModel):
         text: 待翻译的文本列表
         source_lang: 源语言代码（如'en', 'zh'）
         target_lang: 目标语言代码（如'en', 'zh'）
-        model_type: 使用的翻译模型类型，默认为'm2m100'
+        model_type: 使用的翻译模型类型，默认为'hy_mt1.5'
     """
     text: List[str]
     source_lang: str
     target_lang: str
-    model_type: Optional[str] = "m2m100"
+    model_type: Optional[str] = "hy_mt1.5"
 
     @validator('text')
     def text_must_not_be_empty(cls, v):

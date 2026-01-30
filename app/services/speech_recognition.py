@@ -300,7 +300,18 @@ async def process_speech_files(file_requests: List[RecognitionFileRequest]) -> t
             #     continue  # 确保有continue语句
             seg_metadata = None
             if seg_file_path:
+                # 转换为容器内路径
                 seg_metadata = os.path.join(settings.INPUT_DIR, seg_file_path)
+
+                # 检查是否为URL，如果是则下载到本地临时文件
+                if await is_url(seg_file_path):
+                    seg_metadata = await download_file(seg_file_path)
+                    temp_files.append(seg_metadata)
+
+                # 验证本地文件是否存在
+                if not os.path.exists(seg_metadata):
+                    invalid_files.append(f"文件不存在: {seg_file_path}")
+                    continue
                 
             # 执行语音识别转录
             result = transcribe_audio_file(whisper_model, local_path)
