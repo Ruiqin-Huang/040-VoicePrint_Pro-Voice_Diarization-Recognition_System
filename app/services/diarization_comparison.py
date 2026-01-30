@@ -183,6 +183,8 @@ class DiarizationComparisonService:
             # 提取两个说话人的音频
             # speaker 0 -> Calling, speaker 1 -> Called
             speaker_map = {0: "calling", 1: "called"}
+            margin = 0.2 # 边缘收缩 200ms 防止串音
+
             for speaker_id, role in speaker_map.items():
                 segment_filename = f"{file_name_base}_{role.capitalize()}.wav"
                 output_path = os.path.join(self.audio_segmentation_dir, segment_filename)
@@ -190,6 +192,12 @@ class DiarizationComparisonService:
                 audio_out = np.zeros_like(audio)
                 for seg_start, seg_end, spk_id in filtered_result:
                     if spk_id == speaker_id:
+                        # 边缘收缩，防止串音
+                        # 确保收缩后的时长仍然大于0
+                        if (seg_end - seg_start) > (2 * margin):
+                            seg_start += margin
+                            seg_end -= margin
+                        
                         start_sample, end_sample = int(seg_start * sr), int(seg_end * sr)
                         # 确保索引不超出范围
                         end_sample = min(end_sample, original_duration_samples)
