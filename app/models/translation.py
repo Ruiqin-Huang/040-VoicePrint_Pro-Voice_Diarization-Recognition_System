@@ -47,7 +47,7 @@ class TranslationRequest(BaseModel):
             ValueError: 当文本列表为空时抛出
         """
         if not v:
-            raise ValueError("文件列表不能为空")
+            raise ValueError("文本列表不能为空")
         return v
 
 class TranslationResponseData(BaseModel):

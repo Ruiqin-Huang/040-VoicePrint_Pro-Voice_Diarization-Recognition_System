@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     TRANSLATION_SMALL100_CACHE_DIR: str = "./pretrained_models/small100"  # Small100翻译模型缓存目录
     TRANSLATION_HY_MT15_CACHE_DIR: str = "./pretrained_models/HY-MT1___5-1___8B"  # Hunyuan MT1.5翻译模型缓存目录
 
+    # === 混元翻译微服务配置 ===
+    HY_TRANSLATION_PORT: int = 8766  # 混元翻译服务端口
+    HY_TRANSLATION_LOCAL_PORT: int = 8901  # 混元翻译模型本地端口
+    HY_TRANSLATION_SERVICE_URL: str = f'http://localhost:{HY_TRANSLATION_LOCAL_PORT}/api/translation'  # 混元翻译服务URL
+
     # === 输入输出目录配置 ===
     INPUT_DIR: str = "./data/input"  # 输入根目录
 

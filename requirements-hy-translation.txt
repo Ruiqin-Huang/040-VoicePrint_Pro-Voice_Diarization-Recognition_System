@@ -1,0 +1,27 @@
+# 混元MT1.5翻译微服务依赖
+# 专门为混元翻译服务配置，避免与主应用的环境冲突
+
+# FastAPI框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# 模型推理框架
+torch>=2.0.0
+modelscope>=1.11.0
+transformers>=4.30.0
+
+# HTTP客户端
+httpx>=0.25.0
+
+# 并发和异步
+asyncio>=3.4.3
+
+# 进度显示
+tqdm>=4.66.0
+
+# 配置管理
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# 日志
+python-logging-loki>=0.3.2

@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
     await close_http_client()
 
     print("Application shutting down.")
+    
 app = FastAPI(
     title="VoicePrintPro_API",
     description="提供语音分割和语音识别功能的API服务",

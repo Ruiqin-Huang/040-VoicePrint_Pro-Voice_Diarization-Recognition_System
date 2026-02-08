@@ -7,6 +7,7 @@
 主要功能：
 - 多语言文本翻译
 - 支持M2M100和Small100模型
+- 支持混元MT1.5模型（通过微服务调用）
 - 模型缓存和重用
 - 批量文本处理
 
@@ -14,14 +15,15 @@
 - transformers: Hugging Face模型库
 - app.services.tokenization_small100: Small100分词器
 - app.config.settings: 配置管理
+- httpx: HTTP客户端（用于调用混元翻译微服务）
 """
 
 import gc
 import os
 from typing import List, Dict, Any
 import torch
+import httpx
 from tqdm import tqdm
-from modelscope import AutoModelForCausalLM, AutoTokenizer
 from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
 from app.services.tokenization_small100 import SMALL100Tokenizer
 
@@ -42,7 +44,8 @@ MODEL_CONFIG = {
     },
     "hy_mt1.5": {
         "model_name": "Tencent-Hunyuan/HY-MT1.5-1.8B",  # HY-MT1.5模型名称
-        "model_dir": settings.TRANSLATION_HY_MT15_CACHE_DIR  # Hunyuan MT1.5模型缓存目录
+        "service_url": settings.HY_TRANSLATION_SERVICE_URL,  # 混元翻译服务URL
+        "model_dir": settings.TRANSLATION_HY_MT15_CACHE_DIR  # Hunyuan MT1.5模型缓存目录（仅作备用）
     }
 }
 
@@ -75,14 +78,16 @@ def clear_models():
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
 
-def load_model(model_type: str = "hy_mt1.5"):
+def load_model(model_type: str = "m2m100"):
     """
     加载指定类型的翻译模型和分词器
 
     使用缓存机制，如果模型已加载则直接返回，否则从本地加载。
+    
+    注意：混元MT1.5模型通过微服务调用，不在此函数中加载。
 
     Args:
-        model_type: 模型类型，"m2m100" 或 "small100" 或 "hy_mt1.5"
+        model_type: 模型类型，"m2m100" 或 "small100"
 
     Returns:
         Tuple: (model, tokenizer) 已加载的模型和分词器
@@ -101,9 +106,6 @@ def load_model(model_type: str = "hy_mt1.5"):
             model = config["class"][0].from_pretrained(config["model_dir"], local_files_only=True)
             # 加载分词器，清理tokenization空格
             tokenizer = config["class"][1].from_pretrained(config["model_dir"], clean_up_tokenization_spaces=True, local_files_only=True)
-        elif model_type == "hy_mt1.5":
-            model = AutoModelForCausalLM.from_pretrained(config["model_dir"], device_map=f"cuda:{settings.GPU_ID}")  # You may want to use bfloat16 and/or move to GPU here
-            tokenizer = AutoTokenizer.from_pretrained(config["model_dir"])
         else:
             raise KeyError(f"未知的模型类型: {model_type}")
         
@@ -168,66 +170,91 @@ def _split_text(
 
     return segments
 
-def translate_text(
+def _translate_text(
     text: str,
     src_lang: str,
     tgt_lang: str,
-    model_type: str = "hy_mt1.5"
+    model_type: str = "m2m100"
 ) -> str:
     """
     执行单条文本翻译的核心函数
+    
+    仅支持 m2m100 和 small100 模型的本地翻译。
+    混元模型请通过 process_translation 调用微服务。
 
     Args:
         text: 待翻译的文本
         src_lang: 源语言代码
         tgt_lang: 目标语言代码
-        model_type: 使用的模型类型
+        model_type: 使用的模型类型，"m2m100" 或 "small100"
 
     Returns:
         str: 翻译后的文本
+        
+    Raises:
+        Exception: 当翻译失败时抛出
     """
     # 加载模型和分词器
-    model_data = load_model(model_type)
-
-    model, tokenizer = model_data
+    model, tokenizer = load_model(model_type)
     # print(model_type, src_lang, tgt_lang, text)
 
-    if model_type == "hy_mt1.5":
-        # 混元MT1.5模型的翻译流程
-        messages = [
-            {"role": "user", "content": f"将以下文本翻译为{tgt_lang}，注意只需要输出翻译后的结果，不要额外解释：\n\n{text}"},
-        ]
-        tokenized_chat = tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=False,
-            return_tensors="pt"
+    # 设置源语言
+    tokenizer.src_lang = src_lang
+
+    if model_type == "m2m100":
+        # M2M100模型的翻译流程
+        inputs = tokenizer(text, return_tensors="pt")
+        outputs = model.generate(
+            **inputs,
+            forced_bos_token_id=tokenizer.get_lang_id(tgt_lang)  # 强制目标语言开头token
         )
-
-        outputs = model.generate(tokenized_chat.to(model.device), max_new_tokens=2048)
-        output_text = tokenizer.decode(outputs[0])
     else:
-        # 设置源语言
-        tokenizer.src_lang = src_lang
-
-        if model_type == "m2m100":
-            # M2M100模型的翻译流程
-            inputs = tokenizer(text, return_tensors="pt")
-            outputs = model.generate(
-                **inputs,
-                forced_bos_token_id=tokenizer.get_lang_id(tgt_lang)  # 强制目标语言开头token
-            )
-        else:
-            # Small100模型的翻译流程
-            tokenizer.tgt_lang = tgt_lang
-            inputs = tokenizer(text, return_tensors="pt")
-            outputs = model.generate(
-                **inputs
-            )
-        output_text = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+        # Small100模型的翻译流程
+        tokenizer.tgt_lang = tgt_lang
+        inputs = tokenizer(text, return_tensors="pt")
+        outputs = model.generate(
+            **inputs
+        )
+    output_text = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
 
     # 解码输出并返回翻译结果
     return output_text
+
+def _translate_via_service(
+    texts,
+    src_lang: str,
+    tgt_lang: str
+):
+    """
+    通过HTTP调用混元翻译微服务进行批量翻译
+
+    Args:
+        texts: 待翻译的文本列表
+        src_lang: 源语言代码
+        tgt_lang: 目标语言代码
+
+    Returns:
+        翻译结果，微服务返回 List[TranslationResponseData]
+        
+    Raises:
+        Exception: 当服务调用失败时抛出
+    """
+    service_url = MODEL_CONFIG["hy_mt1.5"]["service_url"]
+    
+    try:
+        with httpx.Client(timeout=60000.0) as client:
+            response = client.post(
+                service_url,
+                json={
+                    "text": texts,
+                    "source_lang": src_lang,
+                    "target_lang": tgt_lang
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        raise Exception(f"Failed to call HY-MT1.5 translation service at {service_url}: {str(e)}")
 
 async def process_translation(
     file_requests: List[FileRequest],
@@ -244,7 +271,7 @@ async def process_translation(
         file_requests: 待翻译的文本列表
         source_lang: 源语言代码
         target_lang: 目标语言代码
-        model_type: 使用的模型类型
+        model_type: 使用的模型类型，默认为 "hy_mt1.5"，支持 "m2m100" 和 "small100"
 
     Returns:
         Tuple[List[Dict], List[str]]:
@@ -254,21 +281,33 @@ async def process_translation(
     processed_files = []
     invalid_files = []
 
-    # 使用进度条显示翻译进度
+    # 混元模型直接调用微服务批量翻译接口
+    if model_type == "hy_mt1.5":
+        try:
+            results = _translate_via_service(file_requests, source_lang, target_lang)
+            # 微服务返回 List[TranslationResponseData]
+            if isinstance(results, list):
+                processed_files.extend(results)
+            else:
+                processed_files.append(results)
+        except Exception as e:
+            # 记录所有文本的失败信息
+            for text in file_requests:
+                invalid_files.append(f"{text}: {str(e)}")
+        
+        return processed_files, invalid_files
+
+    # 其他模型逐条翻译
     for text in tqdm(file_requests, desc="Translating text"):
         try:
-            if model_type == "hy_mt1.5":
-                # 混元MT1.5模型翻译
-                translated_text = translate_text(text, source_lang, target_lang, model_type)
-            else:
-                # 文本切段
-                segments = _split_text(text)
-                translated_text = ""
+            # 文本切段
+            segments = _split_text(text)
+            translated_text = ""
 
-                for segment in segments:
-                    # 执行翻译
-                    translated = translate_text(segment, source_lang, target_lang, model_type)
-                    translated_text += translated
+            for segment in segments:
+                # 执行翻译
+                translated = _translate_text(segment, source_lang, target_lang, model_type)
+                translated_text += translated
 
             # 构建翻译结果
             processed_files.append({
@@ -290,8 +329,12 @@ async def process_translation(
 if __name__ == "__main__":
     # 测试m2m100模型
     model = "m2m100"
-    print(model, "翻译结果:", translate_text("你好。", "zh", "en", model))
+    print(model, "翻译结果:", _translate_text("你好。", "zh", "en", model))
 
     # 测试small100模型 (需先安装ctranslate2: pip install ctranslate2)
     model = "small100"
-    print(model, "翻译结果:", translate_text("Hello.", "en", "zh", model))
+    print(model, "翻译结果:", _translate_text("Hello.", "en", "zh", model))
+    
+    # 测试混元MT1.5模型（需要启动微服务）
+    # model = "hy_mt1.5"
+    # print(model, "翻译结果:", _translate_text("Hello, this is a sentence needing translation.", "en", "zh", model))
