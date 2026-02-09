@@ -27,7 +27,6 @@ from tqdm import tqdm
 from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
 from app.services.tokenization_small100 import SMALL100Tokenizer
 
-from app.models.translation import FileRequest
 from app.config.settings import settings
 
 # 模型配置字典，定义不同模型的配置信息
@@ -221,7 +220,7 @@ def _translate_text(
     return output_text
 
 def _translate_via_service(
-    texts,
+    texts: List[str],
     src_lang: str,
     tgt_lang: str
 ):
@@ -257,7 +256,7 @@ def _translate_via_service(
         raise Exception(f"Failed to call HY-MT1.5 translation service at {service_url}: {str(e)}")
 
 async def process_translation(
-    file_requests: List[FileRequest],
+    texts: List[str],
     source_lang: str,
     target_lang: str,
     model_type: str = "hy_mt1.5"
@@ -268,7 +267,7 @@ async def process_translation(
     对多个文本进行翻译，支持进度条显示。
 
     Args:
-        file_requests: 待翻译的文本列表
+        texts: 待翻译的文本列表
         source_lang: 源语言代码
         target_lang: 目标语言代码
         model_type: 使用的模型类型，默认为 "hy_mt1.5"，支持 "m2m100" 和 "small100"
@@ -283,22 +282,12 @@ async def process_translation(
 
     # 混元模型直接调用微服务批量翻译接口
     if model_type == "hy_mt1.5":
-        try:
-            results = _translate_via_service(file_requests, source_lang, target_lang)
-            # 微服务返回 List[TranslationResponseData]
-            if isinstance(results, list):
-                processed_files.extend(results)
-            else:
-                processed_files.append(results)
-        except Exception as e:
-            # 记录所有文本的失败信息
-            for text in file_requests:
-                invalid_files.append(f"{text}: {str(e)}")
+        response_results = _translate_via_service(texts, source_lang, target_lang)
         
-        return processed_files, invalid_files
+        return response_results
 
     # 其他模型逐条翻译
-    for text in tqdm(file_requests, desc="Translating text"):
+    for text in tqdm(texts, desc="Translating text"):
         try:
             # 文本切段
             segments = _split_text(text)
@@ -336,5 +325,5 @@ if __name__ == "__main__":
     print(model, "翻译结果:", _translate_text("Hello.", "en", "zh", model))
     
     # 测试混元MT1.5模型（需要启动微服务）
-    # model = "hy_mt1.5"
-    # print(model, "翻译结果:", _translate_text("Hello, this is a sentence needing translation.", "en", "zh", model))
+    model = "hy_mt1.5"
+    print(model, "翻译结果:", _translate_via_service(["Hello, this is a sentence needing translation."], "en", "zh"))

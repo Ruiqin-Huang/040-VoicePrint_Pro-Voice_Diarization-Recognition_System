@@ -2,13 +2,19 @@
 # 专门为混元翻译服务配置，避免与主应用的环境冲突
 
 # FastAPI框架
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+fastapi
+uvicorn
+python-multipart
 
 # 模型推理框架
-torch>=2.0.0
-modelscope>=1.11.0
-transformers>=4.30.0
+torch==2.2.2
+torchvision==0.17.2
+torchaudio==2.2.2
+--index-url https://download.pytorch.org/whl/cu118
+transformers==4.56.0
+modelscope
+accelerate
+numpy<2.0.0
 
 # HTTP客户端
 httpx>=0.25.0
@@ -21,7 +27,4 @@ tqdm>=4.66.0
 
 # 配置管理
 pydantic>=2.0.0
-pydantic-settings>=2.0.0
-
-# 日志
-python-logging-loki>=0.3.2
+pydantic_settings>=2.0.0

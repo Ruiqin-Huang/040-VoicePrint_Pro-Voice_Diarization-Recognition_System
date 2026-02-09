@@ -8,7 +8,7 @@
 - 接收翻译请求
 - 调用翻译服务进行处理
 - 返回结构化的翻译结果
-- 支持M2M100和Small100模型选择
+- 支持M2M100、Small100、混元MT1.5模型选择
 
 依赖：
 - FastAPI: Web框架
@@ -56,12 +56,17 @@ async def translation(requests: TranslationRequest):
             )
 
         # 调用翻译服务处理文本
-        processed_files, invalid_files = await process_translation(
+        response_results = await process_translation(
             requests.text,
             requests.source_lang,
             requests.target_lang,
             requests.model_type
         )
+
+        if requests.model_type == "hy_mt1.5":
+            return response_results
+        
+        processed_files, invalid_files = response_results
 
         # 检查处理结果
         if not processed_files:

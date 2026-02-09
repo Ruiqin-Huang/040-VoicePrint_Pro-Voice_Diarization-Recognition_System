@@ -14,6 +14,7 @@ import gc
 from typing import List
 import torch
 from modelscope import AutoModelForCausalLM, AutoTokenizer
+from tqdm import tqdm
 
 from app.config.settings import settings
 
@@ -89,15 +90,16 @@ async def _translate_text(text: str) -> str:
         add_generation_prompt=False,
         return_tensors="pt"
     )
-    
+
     # 生成翻译
     outputs = model.generate(
         tokenized_chat.to(model.device),
         max_new_tokens=2048
     )
     
-    # 解码输出
-    translated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    # 解码输出，仅解码新生成部分，避免回显输入
+    translated_text = tokenizer.decode(outputs[0][tokenized_chat.shape[-1]:], skip_special_tokens=True)
+    # print(f"Translated text: {translated_text}")
     return translated_text
 
 async def process_translation(
@@ -116,18 +118,23 @@ async def process_translation(
     Returns:
         List[dict]: 翻译结果列表（字典形式，供API层组装响应模型）
     """
+    processed_files = []
+    invalid_files = []
 
-    results: List[dict] = []
-    for text in texts:
-        translated_text = await _translate_text(text)
-        results.append({
-            "source_lang": source_lang,
-            "source_lang_name": settings.LANG_DICT.get(source_lang, "其他语言"),
-            "source_text": text,
-            "target_lang": target_lang,
-            "target_lang_name": settings.LANG_DICT.get(target_lang, "其他语言"),
-            "translated_text": translated_text,
-            "model_name": "Tencent-Hunyuan/HY-MT1.5-1.8B"
-        })
+    for text in tqdm(texts, desc="Translating text"):
+        try:
+            translated_text = await _translate_text(text)
+            processed_files.append({
+                "source_lang": source_lang,
+                "source_lang_name": settings.LANG_DICT.get(source_lang, "其他语言"),
+                "source_text": text,
+                "target_lang": target_lang,
+                "target_lang_name": settings.LANG_DICT.get(target_lang, "其他语言"),
+                "translated_text": translated_text,
+                "model_name": "Tencent-Hunyuan/HY-MT1.5-1.8B"
+            })
+        except Exception as e:
+            # 记录翻译失败的文本及错误信息
+            invalid_files.append(f"{text}: {str(e)}")
 
-    return results
+    return processed_files, invalid_files

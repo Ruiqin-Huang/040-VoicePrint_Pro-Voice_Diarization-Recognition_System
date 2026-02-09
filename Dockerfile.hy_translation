@@ -23,30 +23,33 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HF_HOME=/app/pretrained_models \
     MODEL_SCOPE_CACHE=/app/pretrained_models
 
-# 升级pip并安装Python依赖
-RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
-
 # 一次性安装所有Python依赖
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel \
+    # PyTorch 2.2.2 + CUDA 11.8
     && pip3 install --no-cache-dir \
-    torch==2.0.1 \
-    torchvision==0.15.2 \
-    torchaudio==2.0.2 \
+    torch==2.2.2 \
+    torchvision==0.17.2 \
+    torchaudio==2.2.2 \
+    --index-url https://download.pytorch.org/whl/cu118 \
+    # 模型推理框架
+    && pip3 install --no-cache-dir \
     transformers==4.56.0 \
     modelscope \
     accelerate \
-    uvicorn[standard] \
+    numpy<2.0.0 \
+    # FastAPI框架
     fastapi \
-    pydantic \
+    uvicorn \
     python-multipart \
-    asyncio \
-    --index-url https://download.pytorch.org/whl/cu118 \
-    && pip3 install --no-cache-dir \
-    typing-extensions \
-    httpx \
-    aiofiles \
-    sentencepiece \
-    protobuf \
+    # HTTP客户端
+    httpx>=0.25.0 \
+    # 并发和异步
+    asyncio>=3.4.3 \
+    # 进度显示
+    tqdm>=4.66.0 \
+    # 配置管理
+    pydantic>=2.0.0 \
+    pydantic_settings>=2.0.0 \
     && pip3 cache purge \
     && rm -rf /tmp/* /var/tmp/*
 
@@ -54,8 +57,6 @@ RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel \
 RUN mkdir -p /app/pretrained_models \
     && mkdir -p /app/app \
     && chmod 777 /app/pretrained_models /app/app
-
-EXPOSE 8000
 
 # 设置默认启动命令
 CMD ["python", "-m", "app.hy_main"]
